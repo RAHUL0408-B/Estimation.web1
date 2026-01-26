@@ -1,0 +1,112 @@
+"use client";
+
+import Link from "next/link";
+import { usePathname, useRouter } from "next/navigation";
+import {
+    LayoutDashboard,
+    ShoppingBag,
+    MessageSquare,
+    Image as ImageIcon,
+    Settings,
+    LogOut,
+    Plus,
+    Globe,
+    Sliders
+} from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
+import { useTenantAuth } from "@/hooks/useTenantAuth";
+import { GenerateEstimateDialog } from "@/components/dashboard/GenerateEstimateDialog";
+
+const SIDEBAR_ITEMS = [
+    { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
+    { label: "Orders", href: "/dashboard/orders", icon: ShoppingBag },
+    { label: "Consultation Requests", href: "/dashboard/consultation-requests", icon: MessageSquare },
+    { label: "Portfolio", href: "/dashboard/portfolio", icon: ImageIcon },
+    { label: "Pricing & Configuration", href: "/dashboard/pricing", icon: Sliders },
+    { label: "Website Setup", href: "/dashboard/website-setup", icon: Globe },
+    { label: "Settings", href: "/dashboard/settings", icon: Settings },
+];
+
+export default function TenantLayout({ children }: { children: React.ReactNode }) {
+    const pathname = usePathname();
+    const router = useRouter();
+    const { tenant, logout } = useTenantAuth();
+
+    const handleLogout = async () => {
+        await logout();
+        router.push("/login");
+    };
+
+    return (
+        <div className="flex min-h-screen bg-[#F8FAFC]">
+            {/* Sidebar */}
+            <aside className="fixed left-0 top-0 h-full w-64 border-r bg-white flex flex-col">
+                <div className="p-6">
+                    <div className="flex items-center space-x-2 mb-8">
+                        <div className="h-8 w-8 bg-black rounded flex items-center justify-center">
+                            <span className="text-white font-bold text-xl">E</span>
+                        </div>
+                        <span className="text-xl font-bold tracking-tight">EstiMate</span>
+                    </div>
+
+                    {/* Workspace Selector */}
+                    <div className="mb-6">
+                        <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block mb-1">Workspace</label>
+                        <div className="p-2 border rounded-md bg-gray-50 flex items-center justify-between cursor-pointer">
+                            <span className="text-sm font-medium truncate">{tenant?.businessName || "Amit Interiors"}</span>
+                        </div>
+                    </div>
+
+                    <GenerateEstimateDialog
+                        trigger={
+                            <Button className="w-full mb-6 bg-[#0F172A] hover:bg-[#1E293B] text-white py-6" size="lg">
+                                <Plus className="mr-2 h-4 w-4" /> Add New Estimate
+                            </Button>
+                        }
+                    />
+
+                    <nav className="space-y-1">
+                        {SIDEBAR_ITEMS.map((item) => {
+                            const isActive = pathname === item.href;
+                            const Icon = item.icon;
+
+                            return (
+                                <Link key={item.href} href={item.href} className="block">
+                                    <div className={cn(
+                                        "flex items-center px-3 py-2.5 rounded-md text-sm font-medium transition-colors cursor-pointer",
+                                        isActive
+                                            ? "bg-gray-100 text-[#0F172A]"
+                                            : "text-gray-500 hover:bg-gray-50 hover:text-[#0F172A]"
+                                    )}>
+                                        <Icon className={cn("mr-3 h-5 w-5", isActive ? "text-[#0F172A]" : "text-gray-400")} />
+                                        {item.label}
+                                    </div>
+                                </Link>
+                            )
+                        })}
+                    </nav>
+                </div>
+
+                <div className="mt-auto p-4 border-t">
+                    <Button
+                        variant="ghost"
+                        className="w-full justify-start text-gray-500 hover:text-destructive py-6"
+                        onClick={handleLogout}
+                    >
+                        <LogOut className="mr-3 h-5 w-5" />
+                        Logout
+                    </Button>
+                </div>
+            </aside>
+
+            {/* Main Content */}
+            <main className="ml-64 flex-1">
+                <div className="p-8 max-w-7xl mx-auto">
+                    {children}
+                </div>
+            </main>
+        </div>
+    );
+}
+

@@ -1,0 +1,166 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ========================================
+    // Helper Functions
+    // ========================================
+
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function getUserRole() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() && getUserRole() == 'admin';
+    }
+
+    function isTenantOwner(tenantId) {
+      return isAuthenticated() &&
+        get(/databases/$(database)/documents/tenants/$(tenantId)).data.ownerUid == request.auth.uid;
+    }
+
+    // ========================================
+    // Users Collection
+    // ========================================
+    match /users/{userId} {
+      // Users can read and write their own document
+      allow read: if isOwner(userId);
+      allow create: if isOwner(userId);
+      allow update: if isOwner(userId);
+
+      // Admins can read any user document (for debugging/support)
+      allow read: if isAdmin();
+    }
+
+    // ========================================
+    // Customers Collection (Legacy)
+    // ========================================
+    match /customers/{customerId} {
+      // Customers can read and write their own document
+      allow read, write: if isOwner(customerId);
+    }
+
+    // ========================================
+    // Tenants Collection
+    // ========================================
+    match /tenants/{tenantId} {
+      // Public read for storefront (anyone can view tenant info)
+      allow read: if true;
+
+      // Only tenant owner can update their own tenant document
+      allow update: if isAuthenticated() &&
+        resource.data.ownerUid == request.auth.uid;
+
+      // Super admins can create new tenants (during signup)
+      allow create: if isAuthenticated();
+    }
+
+    // ========================================
+    // Orders Collection
+    // ========================================
+    match /orders/{orderId} {
+      // Customers can read their own orders
+      allow read: if isAuthenticated() &&
+        resource.data.createdByUserId == request.auth.uid;
+
+      // Tenant owners can read orders for their tenant
+      allow read: if isAuthenticated() &&
+        isTenantOwner(resource.data.tenantId);
+
+      // Anyone authenticated can create orders
+      allow create: if isAuthenticated();
+
+      // Only tenant owners can update/delete orders (approve/reject)
+      allow update, delete: if isAuthenticated() &&
+        isTenantOwner(resource.data.tenantId);
+    }
+
+    // ========================================
+    // Estimates Collection
+    // ========================================
+    match /estimates/{estimateId} {
+      // Customers can read their own estimates
+      allow read: if isAuthenticated() &&
+        resource.data.createdByUserId == request.auth.uid;
+
+      // Tenant owners can read estimates for their company
+      allow read: if isAuthenticated() && (
+        isTenantOwner(resource.data.tenantId) ||
+        resource.data.companyId == request.auth.uid
+      );
+
+      // Anyone authenticated can create estimates
+      allow create: if isAuthenticated();
+
+      // Only creators or tenant owners can update estimates
+      allow update: if isAuthenticated() && (
+        resource.data.createdByUserId == request.auth.uid ||
+        isTenantOwner(resource.data.tenantId)
+      );
+    }
+
+    // ========================================
+    // Pricing Configs Collection
+    // ========================================
+    match /pricing_configs/{tenantId} {
+      // Public read for estimate form calculation
+      allow read: if true;
+
+      // Only tenant owner can write pricing config
+      allow write: if isAuthenticated() && isTenantOwner(tenantId);
+    }
+
+    // ========================================
+    // Activities Collection (Platform-wide logging)
+    // ========================================
+    match /activities/{activityId} {
+      // Only admins can read activities
+      allow read: if isAdmin();
+
+      // System can create activities (via authenticated users)
+      allow create: if isAuthenticated();
+    }
+
+    // ========================================
+    // Consultation Requests Collection
+    // ========================================
+    match /consultation_requests/{requestId} {
+      // Anyone authenticated can create consultation requests
+      allow create: if isAuthenticated();
+
+      // Customers can read their own requests
+      allow read: if isAuthenticated() &&
+        resource.data.customerId == request.auth.uid;
+
+      // Tenant owners can read/update requests for their tenant
+      allow read, update: if isAuthenticated() &&
+        isTenantOwner(resource.data.tenantId);
+    }
+
+    // ========================================
+    // Portfolio Collection
+    // ========================================
+    match /portfolios/{tenantId} {
+      // Public read for storefront
+      allow read: if true;
+
+      // Only tenant owner can write
+      allow write: if isAuthenticated() && isTenantOwner(tenantId);
+    }
+
+    // ========================================
+    // Catch-all rule (deny by default)
+    // ========================================
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

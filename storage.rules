@@ -1,0 +1,54 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    // ========================================
+    // Estimates PDFs
+    // ========================================
+    match /estimates/{estimateId}.pdf {
+      // Anyone authenticated can read their PDFs
+      allow read: if request.auth != null;
+
+      // Anyone authenticated can upload PDFs
+      allow write: if request.auth != null
+        && request.resource.size < 5 * 1024 * 1024  // Max 5MB
+        && request.resource.contentType == 'application/pdf';
+    }
+
+    // ========================================
+    // Tenant Logos and Assets
+    // ========================================
+    match /tenants/{tenantId}/{allPaths=**} {
+      // Public read for tenant assets (logos, portfolio images)
+      allow read: if true;
+
+      // Only authenticated users can write (tenant owner validation done at app level)
+      allow write: if request.auth != null
+        && request.resource.size < 10 * 1024 * 1024  // Max 10MB
+        && request.resource.contentType.matches('image/.*');
+    }
+
+    // ========================================
+    // Portfolio Images
+    // ========================================
+    match /portfolios/{tenantId}/{imageId} {
+      // Public read for portfolio images
+      allow read: if true;
+
+      // Only authenticated users can write
+      allow write: if request.auth != null
+        && request.resource.size < 10 * 1024 * 1024  // Max 10MB
+        && request.resource.contentType.matches('image/.*');
+    }
+
+    // ========================================
+    // User Profile Images
+    // ========================================
+    match /users/{userId}/{allPaths=**} {
+      // Users can read and write their own files
+      allow read, write: if request.auth != null && request.auth.uid == userId
+        && request.resource.size < 5 * 1024 * 1024  // Max 5MB
+        && request.resource.contentType.matches('image/.*');
+    }
+  }
+}

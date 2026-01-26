@@ -1,0 +1,19 @@
+// Quick fix: Update tenant to have storeId = "amit-interiors"
+// Run this in browser console on the admin page
+
+import { doc, updateDoc } from 'firebase/firestore';
+import { db } from '@/lib/firebase';
+
+async function fixTenantStoreId() {
+    const tenantId = 'kMk3jjsTuPwJCwlOpIqK';
+    const storeId = 'amit-interiors';
+    
+    const tenantRef = doc(db, 'tenants', tenantId);
+    await updateDoc(tenantRef, {
+        storeId: storeId
+    });
+    
+    console.log('✅ Tenant storeId updated to:', storeId);
+}
+
+fixTenantStoreId();
