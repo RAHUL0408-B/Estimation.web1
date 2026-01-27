@@ -1,8 +1,8 @@
-import { initializeApp, getApps, getApp } from "firebase/app";
-import { getAuth, browserLocalPersistence, setPersistence } from "firebase/auth";
-import { getFirestore } from "firebase/firestore";
-import { getStorage } from "firebase/storage";
-import { getAnalytics, isSupported } from "firebase/analytics";
+import { FirebaseApp, initializeApp, getApps, getApp } from "firebase/app";
+import { Auth, getAuth, browserLocalPersistence, setPersistence } from "firebase/auth";
+import { Firestore, getFirestore } from "firebase/firestore";
+import { FirebaseStorage, getStorage } from "firebase/storage";
+import { Analytics, getAnalytics, isSupported } from "firebase/analytics";
 
 const firebaseConfig = {
     apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
@@ -15,27 +15,34 @@ const firebaseConfig = {
 };
 
 // Initialize Firebase (Singleton pattern)
-const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
+let app: FirebaseApp | undefined;
+let auth: Auth | any;
+let db: Firestore | any;
+let storage: FirebaseStorage | any;
+let analytics: Analytics | undefined;
 
-export const auth = getAuth(app);
+if (typeof window !== "undefined" || firebaseConfig.apiKey) {
+    try {
+        app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
+        auth = getAuth(app);
+        db = getFirestore(app);
+        storage = getStorage(app);
 
-// Set auth persistence to local storage (persists even after browser close)
-if (typeof window !== "undefined") {
-    setPersistence(auth, browserLocalPersistence).catch((error) => {
-        console.error("Error setting auth persistence:", error);
-    });
-}
+        // Set auth persistence to local storage (persists even after browser close)
+        if (typeof window !== "undefined") {
+            setPersistence(auth, browserLocalPersistence).catch((error) => {
+                console.error("Error setting auth persistence:", error);
+            });
 
-export const db = getFirestore(app);
-export const storage = getStorage(app);
-
-let analytics;
-if (typeof window !== "undefined") {
-    isSupported().then((supported) => {
-        if (supported) {
-            analytics = getAnalytics(app);
+            isSupported().then((supported) => {
+                if (supported && app) {
+                    analytics = getAnalytics(app);
+                }
+            });
         }
-    });
+    } catch (error) {
+        console.error("Firebase initialization error:", error);
+    }
 }
 
-export { analytics };
+export { app, auth, db, storage, analytics };
