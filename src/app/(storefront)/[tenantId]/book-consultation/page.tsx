@@ -14,7 +14,9 @@ import { collection, addDoc, serverTimestamp } from "firebase/firestore";
 import { getTenantByStoreId, Tenant } from "@/lib/firestoreHelpers";
 
 export default function BookConsultationPage({ params }: { params: Promise<{ tenantId: string }> }) {
-    const { tenantId: storeSlug } = use(params);
+    const { tenantId } = use(params);
+    const storeSlug = tenantId;
+
     const router = useRouter();
     const { customer, loading: authLoading } = useCustomerAuth();
 
@@ -23,17 +25,25 @@ export default function BookConsultationPage({ params }: { params: Promise<{ ten
     const [tenantLoading, setTenantLoading] = useState(true);
 
     useEffect(() => {
+        let isMounted = true;
         const resolveTenant = async () => {
+            if (!storeSlug) {
+                console.warn("No storeSlug provided.");
+                if (isMounted) setTenantLoading(false);
+                return;
+            }
             try {
                 const tenant = await getTenantByStoreId(storeSlug);
-                setResolvedTenant(tenant);
+                if (isMounted) setResolvedTenant(tenant);
             } catch (error) {
                 console.error("Error resolving tenant:", error);
             } finally {
-                setTenantLoading(false);
+                if (isMounted) setTenantLoading(false);
             }
         };
         resolveTenant();
+
+        return () => { isMounted = false; };
     }, [storeSlug]);
 
     const [name, setName] = useState("");
@@ -87,8 +97,25 @@ export default function BookConsultationPage({ params }: { params: Promise<{ ten
 
     if (authLoading || tenantLoading) {
         return (
-            <div className="flex justify-center py-20">
-                <Loader2 className="h-8 w-8 animate-spin" />
+            <div className="flex flex-col items-center justify-center py-20 space-y-4">
+                <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                <p className="text-muted-foreground">
+                    {authLoading ? "Authenticating..." : "Loading store details..."}
+                </p>
+            </div>
+        );
+    }
+
+    if (!resolvedTenant) {
+        return (
+            <div className="flex flex-col items-center justify-center py-20 space-y-4 text-center">
+                <h2 className="text-xl font-bold text-destructive">Store Not Found</h2>
+                <p className="text-muted-foreground">
+                    We couldn't find the store you're looking for. Please check the URL and try again.
+                </p>
+                <Button onClick={() => router.push("/")} variant="outline">
+                    Go Home
+                </Button>
             </div>
         );
     }

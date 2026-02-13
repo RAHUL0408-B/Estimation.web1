@@ -1,38 +1,48 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { use } from "react";
+import { useState, useEffect, use } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Check, Calculator, Loader2, CheckCircle2 } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Check, Loader2, CheckCircle2, Plus, Minus, Download, Home, Building2, ChevronRight, ArrowLeft } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { usePricingConfig } from "@/hooks/usePricingConfig";
+import { usePricingConfig, PricingItem } from "@/hooks/usePricingConfig";
+import { useCities } from "@/hooks/useCities";
 import { useCustomerAuth } from "@/hooks/useCustomerAuth";
-import { db, auth } from "@/lib/firebase";
-import { collection, addDoc, serverTimestamp, doc, getDoc } from "firebase/firestore";
+import { db } from "@/lib/firebase";
+import { collection, addDoc, serverTimestamp } from "firebase/firestore";
 import { getTenantByStoreId, Tenant } from "@/lib/firestoreHelpers";
 import { generateEstimatePDF } from "@/lib/generateEstimatePdf";
-import { useUserRole } from "@/hooks/useUserRole";
 
-declare module "jspdf" {
-    interface jsPDF {
-        autoTable: (options: any) => jsPDF;
-    }
+type Plan = 'Basic' | 'Standard' | 'Luxe';
+
+interface ItemQuantity {
+    [itemId: string]: number;
+}
+
+interface BedroomConfig {
+    items: ItemQuantity;
+}
+
+interface BathroomConfig {
+    items: ItemQuantity;
 }
 
 export default function EstimatorPage({ params }: { params: Promise<{ tenantId: string }> }) {
-    const { tenantId: tenantSlug } = use(params); // This is the URL slug (storeId)
+    const { tenantId: tenantSlug } = use(params);
     const router = useRouter();
 
-    // Resolve tenant document ID from slug
+
+    // Resolve tenant
     const [resolvedTenant, setResolvedTenant] = useState<Tenant | null>(null);
     const [tenantLoading, setTenantLoading] = useState(true);
 
     useEffect(() => {
         const resolveTenant = async () => {
+            if (!tenantSlug) return;
             try {
                 const tenant = await getTenantByStoreId(tenantSlug);
                 setResolvedTenant(tenant);
@@ -45,723 +55,894 @@ export default function EstimatorPage({ params }: { params: Promise<{ tenantId: 
         resolveTenant();
     }, [tenantSlug]);
 
-    // Use resolved tenant ID for pricing config (document ID, not slug)
     const { config, loading: pricingLoading } = usePricingConfig(resolvedTenant?.id || null);
+    const { cities, loading: citiesLoading } = useCities(resolvedTenant?.id || null);
     const { customer, loading: authLoading, isAdmin } = useCustomerAuth();
 
-    // Role-based check - but DON'T redirect admins, just show them the form
-    const { roleData, loading: roleLoading } = useUserRole();
+    const loading = tenantLoading || pricingLoading || citiesLoading;
 
-    // Combined loading state
-    const loading = tenantLoading || pricingLoading || authLoading || roleLoading;
-
-    // Redirect to login if not authenticated
-    useEffect(() => {
-        if (!loading && !customer && !isAdmin) {
-            router.push(`/${tenantSlug}/login?redirect=/${tenantSlug}/estimate`);
-        }
-    }, [loading, customer, isAdmin, router, tenantSlug]);
+    // NOTE: Removed auth guard - guests can now access estimate page
+    // Auth check moved to handleSubmit function
 
     const [step, setStep] = useState(1);
-    const [currentOrderId, setCurrentOrderId] = useState<string | null>(null);
     const [currentEstimateId, setCurrentEstimateId] = useState<string | null>(null);
     const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
 
-    // Basic inputs
+    // Customer Info
+    const [customerName, setCustomerName] = useState("");
+    const [customerPhone, setCustomerPhone] = useState("");
+    const [customerEmail, setCustomerEmail] = useState("");
+    const [selectedCity, setSelectedCity] = useState("");
+
+    // Project Details
+    const [segment, setSegment] = useState<'Residential' | 'Commercial'>('Residential');
+    const [selectedPlan, setSelectedPlan] = useState<Plan>('Standard');
     const [carpetArea, setCarpetArea] = useState("");
-    const [selectedGrade, setSelectedGrade] = useState<string | null>(null);
-    const [selectedFinish, setSelectedFinish] = useState<string | null>(null);
+    const [bedroomCount, setBedroomCount] = useState(0);
+    const [bathroomCount, setBathroomCount] = useState(0);
 
-    // Living area selections
-    const [livingAreaSelections, setLivingAreaSelections] = useState<Record<string, boolean>>({});
-
-    // Kitchen selections
-    const [selectedWoodType, setSelectedWoodType] = useState<string | null>(null);
-    const [selectedKitchenLayout, setSelectedKitchenLayout] = useState<string | null>(null);
-    const [selectedKitchenAddOns, setSelectedKitchenAddOns] = useState<string[]>([]);
-
-    // Bedroom selections
-    const [selectedBedroomCount, setSelectedBedroomCount] = useState<number | null>(null);
-    const [hasMasterBedroom, setHasMasterBedroom] = useState(false);
-    const [hasWardrobe, setHasWardrobe] = useState(false);
-    const [hasStudyUnit, setHasStudyUnit] = useState(false);
+    // Item Selections
+    const [livingAreaItems, setLivingAreaItems] = useState<ItemQuantity>({});
+    const [kitchenLayout, setKitchenLayout] = useState("");
+    const [kitchenMaterial, setKitchenMaterial] = useState("");
+    const [kitchenItems, setKitchenItems] = useState<ItemQuantity>({});
+    const [bedrooms, setBedrooms] = useState<BedroomConfig[]>([]);
+    const [bathrooms, setBathrooms] = useState<BathroomConfig[]>([]);
 
     const [isSubmitting, setIsSubmitting] = useState(false);
-    const [estimatedCost, setEstimatedCost] = useState(0);
+    const [estimatedTotal, setEstimatedTotal] = useState(0);
+    const [breakdown, setBreakdown] = useState<any[]>([]);
 
-    const toggleLivingAreaOption = (key: string) => {
-        setLivingAreaSelections(prev => ({
-            ...prev,
-            [key]: !prev[key]
-        }));
+    // Update bedroom/bathroom arrays when counts change
+    useEffect(() => {
+        const count = Math.max(0, bedroomCount);
+        if (count > bedrooms.length) {
+            setBedrooms(prev => [...prev, ...Array(count - prev.length).fill({ items: {} })]);
+        } else if (count < bedrooms.length) {
+            setBedrooms(prev => prev.slice(0, count));
+        }
+    }, [bedroomCount]);
+
+    useEffect(() => {
+        const count = Math.max(0, bathroomCount);
+        if (count > bathrooms.length) {
+            setBathrooms(prev => [...prev, ...Array(count - prev.length).fill({ items: {} })]);
+        } else if (count < bathrooms.length) {
+            setBathrooms(prev => prev.slice(0, count));
+        }
+    }, [bathroomCount]);
+
+    // Scroll to top on step change
+    useEffect(() => {
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    }, [step]);
+
+    // Auto-submit after login if there's pending estimate data
+    useEffect(() => {
+        const checkPendingEstimate = async () => {
+            // Check URL params for autoSubmit flag
+            const urlParams = new URLSearchParams(window.location.search);
+            const shouldAutoSubmit = urlParams.get('autoSubmit') === 'true';
+
+            if (shouldAutoSubmit && (customer || isAdmin)) {
+                // User just logged in, check for pending estimate
+                const pendingData = sessionStorage.getItem('pendingEstimate');
+
+                if (pendingData) {
+                    try {
+                        const formData = JSON.parse(pendingData);
+
+                        // Restore form state
+                        setCustomerName(formData.customerInfo.name);
+                        setCustomerPhone(formData.customerInfo.phone);
+                        setCustomerEmail(formData.customerInfo.email);
+                        setSelectedCity(formData.customerInfo.city);
+                        setSegment(formData.segment);
+                        setSelectedPlan(formData.plan);
+                        setCarpetArea(formData.carpetArea.toString());
+                        setBedroomCount(formData.bedrooms);
+                        setBathroomCount(formData.bathrooms);
+                        setLivingAreaItems(formData.configuration.livingArea);
+                        setKitchenLayout(formData.configuration.kitchen.layout);
+                        setKitchenMaterial(formData.configuration.kitchen.material);
+                        setKitchenItems(formData.configuration.kitchen.items);
+                        setBedrooms(formData.configuration.bedrooms);
+                        setBathrooms(formData.configuration.bathrooms);
+
+                        // Wait a moment for state to update, then submit
+                        setTimeout(() => {
+                            handleSubmit();
+                            // Clean up URL
+                            window.history.replaceState({}, '', `/${tenantSlug}/estimate`);
+                        }, 500);
+                    } catch (error) {
+                        console.error('Error restoring pending estimate:', error);
+                        sessionStorage.removeItem('pendingEstimate');
+                    }
+                }
+            }
+        };
+
+        if (!authLoading) {
+            checkPendingEstimate();
+        }
+    }, [customer, isAdmin, authLoading]);
+
+    const isStepValid = () => {
+        if (step === 1) return true;
+        if (step === 2) return true;
+        if (step === 3) return carpetArea && parseFloat(carpetArea) > 0;
+        if (step === 4) return true;
+        if (step === 5) return customerName && customerPhone && customerEmail && selectedCity;
+        return false;
     };
 
-    const toggleKitchenAddOn = (id: string) => {
-        setSelectedKitchenAddOns(prev =>
-            prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]
-        );
+    const updateItemQuantity = (
+        category: 'livingArea' | 'kitchen' | 'bedroom' | 'bathroom',
+        itemId: string,
+        delta: number,
+        index?: number
+    ) => {
+        if (category === 'livingArea') {
+            setLivingAreaItems(prev => ({
+                ...prev,
+                [itemId]: Math.max(0, (prev[itemId] || 0) + delta)
+            }));
+        } else if (category === 'kitchen') {
+            setKitchenItems(prev => ({
+                ...prev,
+                [itemId]: Math.max(0, (prev[itemId] || 0) + delta)
+            }));
+        } else if (category === 'bedroom' && index !== undefined) {
+            setBedrooms(prev => {
+                const newBedrooms = [...prev];
+                newBedrooms[index] = {
+                    ...newBedrooms[index],
+                    items: {
+                        ...newBedrooms[index].items,
+                        [itemId]: Math.max(0, (newBedrooms[index].items[itemId] || 0) + delta)
+                    }
+                };
+                return newBedrooms;
+            });
+        } else if (category === 'bathroom' && index !== undefined) {
+            setBathrooms(prev => {
+                const newBathrooms = [...prev];
+                newBathrooms[index] = {
+                    ...newBathrooms[index],
+                    items: {
+                        ...newBathrooms[index].items,
+                        [itemId]: Math.max(0, (newBathrooms[index].items[itemId] || 0) + delta)
+                    }
+                };
+                return newBathrooms;
+            });
+        }
     };
 
     const calculateEstimate = () => {
-        if (!config || !carpetArea || !selectedGrade || !selectedFinish) {
-            return 0;
-        }
+        if (!config?.categories) return { total: 0, breakdown: [] };
 
-        const area = parseFloat(carpetArea);
-        if (isNaN(area) || area <= 0) return 0;
-
+        const area = parseFloat(carpetArea) || 0;
         let total = 0;
+        const breakdown: any[] = [];
 
-        // Base calculation
-        const baseRatePerSqft = 500;
-        total = area * baseRatePerSqft;
+        const priceKey = selectedPlan === 'Basic' ? 'basicPrice' : selectedPlan === 'Standard' ? 'standardPrice' : 'luxePrice';
 
-        // Living area add-ons
-        if (config.livingArea) {
-            Object.entries(config.livingArea).forEach(([key, option]) => {
-                if (option && livingAreaSelections[key] && option.enabled) {
-                    total += option.price;
+        // Helper to calculate item cost
+        const calculateItemCost = (item: PricingItem, quantity: number) => {
+            if (item.type === 'fixed') {
+                return item[priceKey];
+            } else if (item.type === 'perUnit') {
+                return quantity * item[priceKey];
+            } else if (item.type === 'perSqft') {
+                return area * quantity * item[priceKey];
+            }
+            return 0;
+        };
+
+        // Living Area
+        const livingAreaCategory = config.categories.find(c => c.id === 'living_area');
+        if (livingAreaCategory) {
+            Object.entries(livingAreaItems).forEach(([itemId, quantity]) => {
+                if (quantity > 0) {
+                    const item = livingAreaCategory.items.find(i => i.id === itemId);
+                    if (item && item.enabled) {
+                        const cost = calculateItemCost(item, quantity);
+                        total += cost;
+                        breakdown.push({
+                            category: 'Living Area',
+                            item: item.name,
+                            quantity,
+                            unitPrice: item[priceKey],
+                            total: cost
+                        });
+                    }
                 }
             });
         }
 
         // Kitchen
-        if (config.kitchen && selectedKitchenLayout && selectedWoodType) {
-            const layout = config.kitchen.layouts.find(l => l.id === selectedKitchenLayout);
-            const woodType = config.kitchen.woodTypes.find(w => w.id === selectedWoodType);
-
-            if (layout && woodType) {
-                total += layout.basePrice * woodType.multiplier;
-            }
-
-            // Kitchen add-ons
-            selectedKitchenAddOns.forEach(addonId => {
-                const addon = config.kitchen!.addOns.find(a => a.id === addonId);
-                if (addon) {
-                    total += addon.price;
+        const kitchenCategory = config.categories.find(c => c.id === 'kitchen');
+        if (kitchenCategory) {
+            Object.entries(kitchenItems).forEach(([itemId, quantity]) => {
+                if (quantity > 0) {
+                    const item = kitchenCategory.items.find(i => i.id === itemId);
+                    if (item && item.enabled) {
+                        const cost = calculateItemCost(item, quantity);
+                        total += cost;
+                        breakdown.push({
+                            category: 'Kitchen',
+                            item: item.name,
+                            quantity,
+                            unitPrice: item[priceKey],
+                            total: cost
+                        });
+                    }
                 }
             });
         }
 
         // Bedrooms
-        if (config.bedrooms && selectedBedroomCount !== null) {
-            const bedroomConfig = config.bedrooms.counts.find(c => c.count === selectedBedroomCount);
-            if (bedroomConfig) {
-                total += bedroomConfig.basePrice;
-            }
-
-            if (hasMasterBedroom && config.bedrooms.masterBedroom?.enabled) {
-                total += config.bedrooms.masterBedroom.additionalPrice;
-            }
-
-            if (hasWardrobe && config.bedrooms.wardrobe?.enabled) {
-                total += config.bedrooms.wardrobe.pricePerBedroom * selectedBedroomCount;
-            }
-
-            if (hasStudyUnit && config.bedrooms.studyUnit?.enabled) {
-                total += config.bedrooms.studyUnit.pricePerUnit;
-            }
+        const bedroomCategory = config.categories.find(c => c.id === 'bedroom');
+        if (bedroomCategory) {
+            bedrooms.forEach((bedroom, index) => {
+                Object.entries(bedroom.items).forEach(([itemId, quantity]) => {
+                    if (quantity > 0) {
+                        const item = bedroomCategory.items.find(i => i.id === itemId);
+                        if (item && item.enabled) {
+                            const cost = calculateItemCost(item, quantity);
+                            total += cost;
+                            breakdown.push({
+                                category: `Bedroom ${index + 1}`,
+                                item: item.name,
+                                quantity,
+                                unitPrice: item[priceKey],
+                                total: cost
+                            });
+                        }
+                    }
+                });
+            });
         }
 
-        // Material grade multiplier
-        const grade = config.materialGrades.find(g => g.id === selectedGrade);
-        if (grade) {
-            total *= grade.multiplier;
+        // Bathrooms
+        const bathroomCategory = config.categories.find(c => c.id === 'bathroom');
+        if (bathroomCategory) {
+            bathrooms.forEach((bathroom, index) => {
+                Object.entries(bathroom.items).forEach(([itemId, quantity]) => {
+                    if (quantity > 0) {
+                        const item = bathroomCategory.items.find(i => i.id === itemId);
+                        if (item && item.enabled) {
+                            const cost = calculateItemCost(item, quantity);
+                            total += cost;
+                            breakdown.push({
+                                category: `Bathroom ${index + 1}`,
+                                item: item.name,
+                                quantity,
+                                unitPrice: item[priceKey],
+                                total: cost
+                            });
+                        }
+                    }
+                });
+            });
         }
 
-        // Finish multiplier
-        const finish = config.finishTypes.find(f => f.id === selectedFinish);
-        if (finish) {
-            total *= finish.multiplier;
-        }
-
-        return Math.round(total);
+        return { total, breakdown };
     };
 
-    const performSubmission = async (cost: number) => {
-        setEstimatedCost(cost);
+    const handleSubmit = async () => {
+        // Validation
+        if (!customerName || !customerPhone || !customerEmail || !selectedCity) {
+            alert("Please fill in all customer information fields");
+            return;
+        }
+        if (!carpetArea || parseFloat(carpetArea) <= 0) {
+            alert("Please enter a valid carpet area");
+            return;
+        }
+
+        // Check if user is authenticated
+        if (!customer && !isAdmin) {
+            // User is not logged in - save form data to sessionStorage
+            const formData = {
+                customerInfo: {
+                    name: customerName,
+                    phone: customerPhone,
+                    email: customerEmail,
+                    city: selectedCity
+                },
+                segment,
+                plan: selectedPlan,
+                carpetArea: parseFloat(carpetArea),
+                bedrooms: bedroomCount,
+                bathrooms: bathroomCount,
+                configuration: {
+                    livingArea: livingAreaItems,
+                    kitchen: {
+                        layout: kitchenLayout,
+                        material: kitchenMaterial,
+                        items: kitchenItems
+                    },
+                    bedrooms: bedrooms,
+                    bathrooms: bathrooms
+                },
+                tenantId: resolvedTenant?.id,
+                tenantSlug: tenantSlug
+            };
+
+            // Save to sessionStorage
+            sessionStorage.setItem('pendingEstimate', JSON.stringify(formData));
+
+            // Redirect to login with return URL
+            router.push(`/${tenantSlug}/login?redirect=/${tenantSlug}/estimate&autoSubmit=true`);
+            return;
+        }
+
+        // User is logged in - proceed with submission
         setIsSubmitting(true);
 
         try {
-            // Use already resolved tenant instead of fetching again
-            const tenantDetails = resolvedTenant;
-            const grade = config?.materialGrades.find(g => g.id === selectedGrade);
-            const finish = config?.finishTypes.find(f => f.id === selectedFinish);
+            const { total, breakdown } = calculateEstimate();
 
-            // Get user data from multiple sources to ensure we have client info
-            // Priority: 1. Customer object, 2. Users collection (roleData), 3. Firebase Auth
-            const currentUser = auth.currentUser;
-            let userData = {
-                name: customer?.displayName || "",
-                phone: customer?.phoneNumber || "",
-                email: customer?.email || "",
-                uid: customer?.uid || currentUser?.uid || ""
-            };
-
-            // If customer data is missing, try to fetch from users collection
-            if (!userData.name && currentUser?.uid) {
-                try {
-                    const userDoc = await getDoc(doc(db, "users", currentUser.uid));
-                    if (userDoc.exists()) {
-                        const userRecord = userDoc.data();
-                        userData = {
-                            name: userRecord.name || userRecord.displayName || currentUser.displayName || "",
-                            phone: userRecord.phone || userRecord.phoneNumber || currentUser.phoneNumber || "",
-                            email: userRecord.email || currentUser.email || "",
-                            uid: currentUser.uid
-                        };
-                    }
-                } catch (err) {
-                    console.error("Error fetching user data:", err);
-                }
-            }
-
-            // Fallback to Firebase Auth data
-            if (!userData.name && currentUser) {
-                userData.name = currentUser.displayName || currentUser.email?.split('@')[0] || "";
-                userData.email = currentUser.email || "";
-                userData.phone = currentUser.phoneNumber || "";
-            }
-
-            // Build kitchen data
-            let kitchenData = null;
-            if (selectedKitchenLayout && selectedWoodType) {
-                const layout = config?.kitchen?.layouts.find(l => l.id === selectedKitchenLayout);
-                const woodType = config?.kitchen?.woodTypes.find(w => w.id === selectedWoodType);
-                kitchenData = {
-                    layout: layout?.name || "",
-                    woodType: woodType?.name || "",
-                    addOns: selectedKitchenAddOns.map(id =>
-                        config?.kitchen?.addOns.find(a => a.id === id)?.name || ""
-                    )
-                };
-            }
-
-            // Build rooms array from selections
-            const rooms: string[] = [];
-            if (config?.livingArea) {
-                Object.entries(livingAreaSelections).forEach(([key, selected]) => {
-                    if (selected) {
-                        rooms.push(key.replace(/([A-Z])/g, ' $1').trim());
-                    }
-                });
-            }
-            if (selectedBedroomCount) {
-                rooms.push(`${selectedBedroomCount} Bedroom(s)`);
-            }
-
-            // STEP 1: Create estimate document
+            // Save to Firestore
             const estimateData = {
-                clientName: userData.name,
-                clientPhone: userData.phone,
-                clientEmail: userData.email,
+                customerInfo: {
+                    name: customerName,
+                    phone: customerPhone,
+                    email: customerEmail,
+                    city: selectedCity
+                },
+                segment,
+                plan: selectedPlan,
                 carpetArea: parseFloat(carpetArea),
-                rooms: rooms,
-                materialGrade: grade?.name || "",
-                finishType: finish?.name || "",
-                totalAmount: cost,
-                companyId: tenantDetails?.ownerUid || "",
-                tenantId: tenantDetails?.id || "",
-                createdByUserId: userData.uid,
-                createdByRole: isAdmin ? "admin" : "customer",
-                formData: {
-                    carpetArea: parseFloat(carpetArea),
-                    livingAreaOptions: livingAreaSelections,
-                    kitchen: kitchenData,
-                    bedrooms: {
-                        count: selectedBedroomCount,
-                        hasMaster: hasMasterBedroom,
-                        hasWardrobe: hasWardrobe,
-                        hasStudyUnit: hasStudyUnit
+                bedrooms: bedroomCount,
+                bathrooms: bathroomCount,
+                configuration: {
+                    livingArea: livingAreaItems,
+                    kitchen: {
+                        layout: kitchenLayout,
+                        material: kitchenMaterial,
+                        items: kitchenItems
                     },
-                    materialGrade: grade?.name || "",
-                    finish: finish?.name || ""
+                    bedrooms: bedrooms,
+                    bathrooms: bathrooms
                 },
-                breakdown: {
-                    carpetArea: parseFloat(carpetArea),
-                    gradeMultiplier: grade?.multiplier || 1,
-                    finishMultiplier: finish?.multiplier || 1
-                },
+                totalAmount: total,
+                tenantId: resolvedTenant?.id,
+                customerId: customer?.uid || null,
                 createdAt: serverTimestamp()
             };
 
-            // Save estimate
-            const estimateRef = await addDoc(collection(db, "estimates"), estimateData);
-            const estimateId = estimateRef.id;
+            const estimatesRef = collection(db, `tenants/${resolvedTenant?.id}/estimates`);
+            const docRef = await addDoc(estimatesRef, estimateData);
 
-            // STEP 2: Create order document with estimateId reference
-            const orderData = {
-                estimateId: estimateId,
-                clientName: userData.name,
-                clientPhone: userData.phone,
-                clientEmail: userData.email,
-                estimatedAmount: cost,
-                status: "pending",
-                companyId: tenantDetails?.ownerUid || "",
-                tenantId: tenantDetails?.id || "", // Document ID
-                storeId: tenantSlug, // Store slug (URL param)
-                createdByUserId: userData.uid,
-                createdByRole: isAdmin ? "admin" : "customer",
+            setCurrentEstimateId(docRef.id);
+            setEstimatedTotal(total);
+            setBreakdown(breakdown);
+            setStep(6);
 
-                // Additional data for display
-                carpetArea: parseFloat(carpetArea),
-                rooms: rooms,
-                materialGrade: grade?.name || "",
-                finishType: finish?.name || "",
-
-                createdAt: serverTimestamp()
-            };
-
-            // Save order
-            const orderRef = await addDoc(collection(db, "orders"), orderData);
-
-            setCurrentOrderId(orderRef.id);
-            setCurrentEstimateId(estimateId); // Store for PDF generation
-            setStep(2);
-        } catch (error: any) {
-            alert(`Failed to save estimate: ${error.message || 'Please try again.'}`);
+            // Clear sessionStorage if it exists
+            sessionStorage.removeItem('pendingEstimate');
+        } catch (error) {
+            console.error("Error submitting estimate:", error);
+            alert("Failed to submit estimate. Please try again.");
         } finally {
             setIsSubmitting(false);
         }
     };
 
-    const generatePDF = async () => {
-        if (!currentEstimateId) {
-            alert("Estimate ID not found. Please try again.");
-            return;
-        }
-
+    const handleDownloadPDF = async () => {
+        if (!currentEstimateId) return;
         setIsGeneratingPDF(true);
         try {
-            // Use already resolved tenant for company name
-            const companyName = resolvedTenant?.businessName || "Interior Design Co.";
-
-            await generateEstimatePDF(currentEstimateId, companyName);
-        } catch (error: any) {
-            alert(`Failed to generate PDF: ${error.message || 'Please try again.'}`);
+            await generateEstimatePDF(currentEstimateId, resolvedTenant?.businessName || "Company");
+        } catch (error) {
+            console.error("Error generating PDF:", error);
+            alert("Failed to generate PDF");
         } finally {
             setIsGeneratingPDF(false);
         }
     };
 
-    const handleCalculate = async () => {
-        const cost = calculateEstimate();
-        if (cost === 0) {
-            alert("Please fill all required fields");
-            return;
-        }
-
-        // User is guaranteed to be authenticated (checked on page load)
-        // Submit estimate to database
-        await performSubmission(cost);
-    };
-
-    // Show loading while checking auth or if redirecting
-    if (loading || (!customer && !isAdmin)) {
+    if (loading) {
         return (
-            <div className="container mx-auto max-w-5xl px-4 py-12 flex items-center justify-center min-h-[500px]">
-                <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
+            <div className="min-h-screen flex items-center justify-center">
+                <Loader2 className="h-8 w-8 animate-spin text-[#0F172A]" />
             </div>
         );
     }
 
-    if (!config) {
+    if (step === 6) {
         return (
-            <div className="container mx-auto max-w-5xl px-4 py-12 text-center">
-                <p className="text-muted-foreground">Pricing configuration not available.</p>
-            </div>
-        );
-    }
-
-    return (
-        <div className="container mx-auto max-w-4xl px-4 py-12">
-            <div className="mb-8 text-center">
-                <h1 className="text-3xl font-bold mb-2 text-gray-900">Get Estimate</h1>
-                <p className="text-gray-600 text-sm font-medium">STEP {step} OF 2</p>
-            </div>
-
-            <Card className="shadow-lg">
-                {step === 1 && (
-                    <>
-                        <CardHeader>
-                            <CardTitle className="text-2xl text-gray-900">Project Inputs</CardTitle>
-                            <CardDescription className="text-gray-600">Configure your space and material preferences</CardDescription>
-                        </CardHeader>
-                        <CardContent className="space-y-8">
-                            {/* Carpet Area */}
-                            <div className="space-y-3">
-                                <Label htmlFor="carpetArea" className="text-sm font-bold uppercase tracking-wider text-gray-800">
-                                    Carpet Area (SQFT)
-                                </Label>
-                                <div className="flex items-center gap-3">
-                                    <Input
-                                        id="carpetArea"
-                                        type="number"
-                                        placeholder="Enter your carpet area (sqft)"
-                                        value={carpetArea}
-                                        onChange={(e) => setCarpetArea(e.target.value)}
-                                        className="text-2xl font-bold h-14 text-gray-900"
-                                        min="100"
-                                        max="10000"
-                                    />
-                                    <span className="text-lg text-gray-500">SQFT</span>
-                                </div>
+            <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 py-12 px-4 flex items-center justify-center">
+                <div className="max-w-3xl w-full">
+                    <Card className="border-none shadow-2xl overflow-hidden rounded-3xl">
+                        <CardHeader className="text-center pb-8 pt-12 bg-white">
+                            <div className="mx-auto mb-6 h-24 w-24 rounded-full bg-green-100 flex items-center justify-center ring-8 ring-green-50">
+                                <CheckCircle2 className="h-12 w-12 text-green-600" />
                             </div>
-
-                            {/* Living Area Options */}
-                            {config.livingArea && (
-                                <div className="space-y-3">
-                                    <Label className="text-sm font-bold uppercase tracking-wider text-gray-800">
-                                        Living Area Options
-                                    </Label>
-                                    <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                                        {Object.entries(config.livingArea).map(([key, option]) => {
-                                            if (!option || !option.enabled) return null;
-                                            return (
-                                                <button
-                                                    key={key}
-                                                    type="button"
-                                                    onClick={() => toggleLivingAreaOption(key)}
-                                                    className={cn(
-                                                        "flex flex-col items-start p-4 rounded-lg border-2 transition-all",
-                                                        livingAreaSelections[key]
-                                                            ? "border-blue-600 bg-blue-50 text-blue-900"
-                                                            : "border-gray-200 bg-white hover:border-gray-300"
-                                                    )}
-                                                >
-                                                    <div className="flex items-center justify-between w-full">
-                                                        <span className="font-medium text-sm capitalize">
-                                                            {key.replace(/([A-Z])/g, ' $1').trim()}
-                                                        </span>
-                                                        {livingAreaSelections[key] && (
-                                                            <Check className="h-5 w-5 text-blue-600" />
-                                                        )}
-                                                    </div>
-                                                    <span className="text-xs text-gray-500 mt-1">₹{option.price?.toLocaleString()}</span>
-                                                </button>
-                                            );
-                                        })}
-                                    </div>
-                                </div>
-                            )}
-
-                            {/* Kitchen Configuration */}
-                            {config.kitchen && (
-                                <div className="space-y-6">
-                                    <Label className="text-sm font-bold uppercase tracking-wider text-gray-800">
-                                        Kitchen Configuration
-                                    </Label>
-
-                                    {/* Wood Type */}
-                                    <div className="space-y-2">
-                                        <Label className="text-xs font-semibold text-gray-700">Wood Type</Label>
-                                        <div className="grid grid-cols-3 gap-3">
-                                            {config.kitchen.woodTypes.filter(w => w.enabled).map((woodType) => (
-                                                <button
-                                                    key={woodType.id}
-                                                    type="button"
-                                                    onClick={() => setSelectedWoodType(woodType.id)}
-                                                    className={cn(
-                                                        "p-3 rounded-lg border-2 transition-all text-center text-sm",
-                                                        selectedWoodType === woodType.id
-                                                            ? "border-blue-600 bg-blue-50 text-blue-900 font-semibold"
-                                                            : "border-gray-200 bg-white hover:border-gray-300"
-                                                    )}
-                                                >
-                                                    {woodType.name}
-                                                </button>
-                                            ))}
-                                        </div>
-                                    </div>
-
-                                    {/* Kitchen Layout */}
-                                    <div className="space-y-2">
-                                        <Label className="text-xs font-semibold text-gray-700">Kitchen Layout</Label>
-                                        <div className="grid grid-cols-2 gap-3">
-                                            {config.kitchen.layouts.filter(l => l.enabled).map((layout) => (
-                                                <button
-                                                    key={layout.id}
-                                                    type="button"
-                                                    onClick={() => setSelectedKitchenLayout(layout.id)}
-                                                    className={cn(
-                                                        "flex flex-col items-start p-3 rounded-lg border-2 transition-all",
-                                                        selectedKitchenLayout === layout.id
-                                                            ? "border-blue-600 bg-blue-50 text-blue-900 font-semibold"
-                                                            : "border-gray-200 bg-white hover:border-gray-300"
-                                                    )}
-                                                >
-                                                    <span className="text-sm">{layout.name}</span>
-                                                    <span className="text-xs text-gray-500 mt-1">₹{layout.basePrice.toLocaleString()}</span>
-                                                </button>
-                                            ))}
-                                        </div>
-                                    </div>
-
-                                    {/* Kitchen Add-ons */}
-                                    <div className="space-y-2">
-                                        <Label className="text-xs font-semibold text-gray-700">Add-ons (Optional)</Label>
-                                        <div className="grid grid-cols-2 gap-3">
-                                            {config.kitchen.addOns.filter(a => a.enabled).map((addon) => (
-                                                <button
-                                                    key={addon.id}
-                                                    type="button"
-                                                    onClick={() => toggleKitchenAddOn(addon.id)}
-                                                    className={cn(
-                                                        "flex flex-col items-start p-3 rounded-lg border-2 transition-all",
-                                                        selectedKitchenAddOns.includes(addon.id)
-                                                            ? "border-blue-600 bg-blue-50 text-blue-900"
-                                                            : "border-gray-200 bg-white hover:border-gray-300"
-                                                    )}
-                                                >
-                                                    <div className="flex items-center justify-between w-full">
-                                                        <span className="text-sm">{addon.name}</span>
-                                                        {selectedKitchenAddOns.includes(addon.id) && (
-                                                            <Check className="h-4 w-4 text-blue-600" />
-                                                        )}
-                                                    </div>
-                                                    <span className="text-xs text-gray-500 mt-1">₹{addon.price.toLocaleString()}</span>
-                                                </button>
-                                            ))}
-                                        </div>
-                                    </div>
-                                </div>
-                            )}
-
-                            {/* Bedroom Configuration */}
-                            {config.bedrooms && (
-                                <div className="space-y-6">
-                                    <Label className="text-sm font-bold uppercase tracking-wider text-gray-800">
-                                        Bedroom Configuration
-                                    </Label>
-
-                                    {/* Bedroom Count */}
-                                    <div className="space-y-2">
-                                        <Label className="text-xs font-semibold text-gray-700">Number of Bedrooms</Label>
-                                        <div className="grid grid-cols-3 gap-3">
-                                            {config.bedrooms.counts.filter(c => c.enabled).map((bc) => (
-                                                <button
-                                                    key={bc.count}
-                                                    type="button"
-                                                    onClick={() => setSelectedBedroomCount(bc.count)}
-                                                    className={cn(
-                                                        "flex flex-col items-center p-3 rounded-lg border-2 transition-all",
-                                                        selectedBedroomCount === bc.count
-                                                            ? "border-blue-600 bg-blue-50 text-blue-900 font-semibold"
-                                                            : "border-gray-200 bg-white hover:border-gray-300"
-                                                    )}
-                                                >
-                                                    <span className="text-lg font-bold">{bc.count}</span>
-                                                    <span className="text-xs text-gray-500 mt-1">₹{bc.basePrice.toLocaleString()}</span>
-                                                </button>
-                                            ))}
-                                        </div>
-                                    </div>
-
-                                    {/* Bedroom Options */}
-                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                                        {config.bedrooms.masterBedroom?.enabled && (
-                                            <button
-                                                type="button"
-                                                onClick={() => setHasMasterBedroom(!hasMasterBedroom)}
-                                                className={cn(
-                                                    "flex items-center justify-between p-3 rounded-lg border-2 transition-all",
-                                                    hasMasterBedroom
-                                                        ? "border-blue-600 bg-blue-50 text-blue-900"
-                                                        : "border-gray-200 bg-white hover:border-gray-300"
-                                                )}
-                                            >
-                                                <span className="text-sm">Master BR</span>
-                                                {hasMasterBedroom && <Check className="h-4 w-4 text-blue-600" />}
-                                            </button>
-                                        )}
-                                        {config.bedrooms.wardrobe?.enabled && (
-                                            <button
-                                                type="button"
-                                                onClick={() => setHasWardrobe(!hasWardrobe)}
-                                                className={cn(
-                                                    "flex items-center justify-between p-3 rounded-lg border-2 transition-all",
-                                                    hasWardrobe
-                                                        ? "border-blue-600 bg-blue-50 text-blue-900"
-                                                        : "border-gray-200 bg-white hover:border-gray-300"
-                                                )}
-                                            >
-                                                <span className="text-sm">Wardrobe</span>
-                                                {hasWardrobe && <Check className="h-4 w-4 text-blue-600" />}
-                                            </button>
-                                        )}
-                                        {config.bedrooms.studyUnit?.enabled && (
-                                            <button
-                                                type="button"
-                                                onClick={() => setHasStudyUnit(!hasStudyUnit)}
-                                                className={cn(
-                                                    "flex items-center justify-between p-3 rounded-lg border-2 transition-all",
-                                                    hasStudyUnit
-                                                        ? "border-blue-600 bg-blue-50 text-blue-900"
-                                                        : "border-gray-200 bg-white hover:border-gray-300"
-                                                )}
-                                            >
-                                                <span className="text-sm">Study Unit</span>
-                                                {hasStudyUnit && <Check className="h-4 w-4 text-blue-600" />}
-                                            </button>
-                                        )}
-                                    </div>
-                                </div>
-                            )}
-
-                            {/* Grade */}
-                            <div className="space-y-3">
-                                <Label className="text-sm font-bold uppercase tracking-wider text-gray-800">
-                                    Material Grade
-                                </Label>
-                                <div className="grid grid-cols-[repeat(auto-fit,minmax(120px,1fr))] gap-3">
-                                    {config.materialGrades.filter(g => g.enabled !== false).map((grade) => (
-                                        <button
-                                            key={grade.id}
-                                            type="button"
-                                            onClick={() => setSelectedGrade(grade.id)}
-                                            className={cn(
-                                                "p-4 rounded-lg border-2 transition-all text-center",
-                                                selectedGrade === grade.id
-                                                    ? "border-blue-600 bg-blue-50 text-blue-900 font-semibold"
-                                                    : "border-gray-200 bg-white hover:border-gray-300"
-                                            )}
-                                        >
-                                            {grade.name}
-                                        </button>
-                                    ))}
-                                </div>
-                            </div>
-
-                            {/* Finish */}
-                            <div className="space-y-3">
-                                <Label className="text-sm font-bold uppercase tracking-wider text-gray-800">
-                                    Finish Type
-                                </Label>
-                                <div className="grid grid-cols-[repeat(auto-fit,minmax(120px,1fr))] gap-3">
-                                    {config.finishTypes.filter(f => f.enabled !== false).map((finish) => (
-                                        <button
-                                            key={finish.id}
-                                            type="button"
-                                            onClick={() => setSelectedFinish(finish.id)}
-                                            className={cn(
-                                                "p-4 rounded-lg border-2 transition-all text-center",
-                                                selectedFinish === finish.id
-                                                    ? "border-blue-600 bg-blue-50 text-blue-900 font-semibold"
-                                                    : "border-gray-200 bg-white hover:border-gray-300"
-                                            )}
-                                        >
-                                            {finish.name}
-                                        </button>
-                                    ))}
-                                </div>
-                            </div>
-
-                            {/* Calculate Button */}
-                            <Button
-                                size="lg"
-                                className="w-full h-14 text-lg bg-gray-900 hover:bg-gray-800"
-                                onClick={handleCalculate}
-                                disabled={isSubmitting || !carpetArea || !selectedGrade || !selectedFinish}
-                            >
-                                {isSubmitting ? (
-                                    <>
-                                        <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                                        Calculating...
-                                    </>
-                                ) : (
-                                    <>
-                                        Calculate Estimate <Calculator className="ml-2 h-5 w-5" />
-                                    </>
-                                )}
-                            </Button>
-                        </CardContent>
-                    </>
-                )}
-
-                {step === 2 && (
-                    <div className="flex h-full flex-col items-center justify-center py-12 text-center">
-                        <div className="mb-6">
-                            <CheckCircle2 className="h-20 w-20 text-green-500 mx-auto" />
-                        </div>
-                        <CardHeader>
-                            <CardTitle className="text-4xl font-serif">Estimated Cost</CardTitle>
-                            <CardDescription className="text-lg mt-2">
-                                Based on your project requirements
+                            <CardTitle className="text-4xl font-bold text-[#0F172A] mb-2 tracking-tight">
+                                Estimate Ready!
+                            </CardTitle>
+                            <CardDescription className="text-lg text-gray-500">
+                                Your detailed project estimate has been generated
                             </CardDescription>
                         </CardHeader>
-                        <CardContent className="max-w-md space-y-6">
-                            <div className="mb-4 flex items-baseline justify-center gap-2">
-                                <span className="text-2xl text-muted-foreground">₹</span>
-                                <span className="text-6xl font-bold tracking-tight text-primary">
-                                    {estimatedCost.toLocaleString('en-IN')}
-                                </span>
+                        <CardContent className="space-y-8 pb-12 bg-gray-50/50 p-8">
+                            <div className="bg-gradient-to-r from-blue-600 to-indigo-600 rounded-2xl p-8 text-center text-white shadow-lg transform hover:scale-[1.02] transition-transform duration-300">
+                                <p className="text-sm font-medium mb-2 opacity-90 uppercase tracking-widest">Total Project Cost</p>
+                                <p className="text-6xl font-bold tracking-tight">₹ {estimatedTotal.toLocaleString('en-IN')}</p>
+                                <p className="text-sm mt-3 opacity-80 font-medium bg-white/20 inline-block px-3 py-1 rounded-full">{selectedPlan} Plan</p>
                             </div>
 
-                            <div className="bg-blue-50 p-6 rounded-lg border border-blue-100 text-left space-y-2">
-                                <div className="flex justify-between">
-                                    <span className="text-sm text-gray-600">Carpet Area:</span>
-                                    <span className="font-semibold">{carpetArea} sqft</span>
+                            {breakdown.length > 0 && (
+                                <div className="space-y-4">
+                                    <h3 className="font-bold text-xl text-[#0F172A] px-1">Detailed Breakdown</h3>
+                                    <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+                                        <div className="overflow-x-auto">
+                                            <table className="w-full">
+                                                <thead className="bg-gray-50 border-b border-gray-100">
+                                                    <tr>
+                                                        <th className="text-left p-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Category</th>
+                                                        <th className="text-left p-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Item</th>
+                                                        <th className="text-right p-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Qty</th>
+                                                        <th className="text-right p-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Unit Price</th>
+                                                        <th className="text-right p-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Total</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody className="divide-y divide-gray-50">
+                                                    {breakdown.map((item, index) => (
+                                                        <tr key={index} className="hover:bg-gray-50/50 transition-colors">
+                                                            <td className="p-4 text-sm font-medium text-gray-900">{item.category}</td>
+                                                            <td className="p-4 text-sm text-gray-600">{item.item}</td>
+                                                            <td className="p-4 text-sm text-right text-gray-600">{item.quantity}</td>
+                                                            <td className="p-4 text-sm text-right text-gray-600">₹ {item.unitPrice.toLocaleString('en-IN')}</td>
+                                                            <td className="p-4 text-sm text-right font-bold text-gray-900">₹ {item.total.toLocaleString('en-IN')}</td>
+                                                        </tr>
+                                                    ))}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </div>
                                 </div>
-                                <div className="flex justify-between">
-                                    <span className="text-sm text-gray-600">Grade:</span>
-                                    <span className="font-semibold">{config.materialGrades.find(g => g.id === selectedGrade)?.name}</span>
-                                </div>
-                                <div className="flex justify-between">
-                                    <span className="text-sm text-gray-600">Finish:</span>
-                                    <span className="font-semibold">{config.finishTypes.find(f => f.id === selectedFinish)?.name}</span>
-                                </div>
-                            </div>
+                            )}
 
-                            <p className="text-sm text-muted-foreground">
-                                Your estimate has been saved. Our team will contact you at <strong>{customer?.email || auth.currentUser?.email || "your registered email"}</strong> to discuss your project.
-                            </p>
-
-                            <div className="flex flex-col gap-3 mt-6">
-                                {currentEstimateId && (
-                                    <Button
-                                        size="lg"
-                                        onClick={generatePDF}
-                                        variant="outline"
-                                        className="w-full"
-                                        disabled={isGeneratingPDF}
-                                    >
-                                        {isGeneratingPDF ? (
-                                            <>
-                                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                                Generating PDF...
-                                            </>
-                                        ) : (
-                                            "Download Price Breakdown (PDF)"
-                                        )}
-                                    </Button>
-                                )}
-
+                            <div className="flex flex-col sm:flex-row gap-4 pt-4">
                                 <Button
-                                    size="sm"
-                                    variant="ghost"
+                                    onClick={handleDownloadPDF}
+                                    disabled={isGeneratingPDF}
+                                    className="flex-1 bg-[#0F172A] hover:bg-[#1E293B] text-white py-7 text-lg rounded-xl shadow-lg hover:shadow-xl transition-all"
+                                >
+                                    {isGeneratingPDF ? (
+                                        <>
+                                            <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                                            Generating PDF...
+                                        </>
+                                    ) : (
+                                        <>
+                                            <Download className="mr-2 h-5 w-5" />
+                                            Download Breakdown PDF
+                                        </>
+                                    )}
+                                </Button>
+                                <Button
                                     onClick={() => {
                                         setStep(1);
-                                        setCarpetArea("");
-                                        setSelectedGrade(null);
-                                        setSelectedFinish(null);
-                                        setLivingAreaSelections({});
-                                        setSelectedWoodType(null);
-                                        setSelectedKitchenLayout(null);
-                                        setSelectedKitchenAddOns([]);
-                                        setSelectedBedroomCount(null);
-                                        setHasMasterBedroom(false);
-                                        setHasWardrobe(false);
-                                        setHasStudyUnit(false);
+                                        setCurrentEstimateId(null);
+                                        setEstimatedTotal(0);
+                                        setBreakdown([]);
                                     }}
-                                    className="text-gray-500 mt-2"
+                                    variant="outline"
+                                    className="flex-1 py-7 text-lg rounded-xl border-2 hover:bg-gray-50 transition-all"
                                 >
                                     Start New Estimate
                                 </Button>
                             </div>
                         </CardContent>
+                    </Card>
+                </div>
+            </div>
+        );
+    }
+
+    const livingAreaCategory = config?.categories?.find(c => c.id === 'living_area');
+    const kitchenCategory = config?.categories?.find(c => c.id === 'kitchen');
+    const bedroomCategory = config?.categories?.find(c => c.id === 'bedroom');
+    const bathroomCategory = config?.categories?.find(c => c.id === 'bathroom');
+
+    const enabledCities = cities.filter(c => c.enabled);
+
+    const { total: currentTotal } = calculateEstimate();
+
+    return (
+        <div className="min-h-screen bg-[#FAFAFA] text-[#0F172A] font-sans pt-4 pb-32 relative z-0">
+            {/* Minimal Header Removed to allow Main Layout Header */}
+
+            <main className="max-w-3xl mx-auto px-6 py-12">
+                {/* Progress Indicators */}
+                <div className="flex justify-center mb-12">
+                    <div className="flex gap-2">
+                        {[1, 2, 3, 4, 5].map(s => (
+                            <div
+                                key={s}
+                                className={cn(
+                                    "h-1.5 rounded-full transition-all duration-500 ease-out",
+                                    step === s ? "w-8 bg-black" : step > s ? "w-8 bg-black/20" : "w-1.5 bg-gray-200"
+                                )}
+                            />
+                        ))}
+                    </div>
+                </div>
+                {/* Step 1: Segment */}
+                {step === 1 && (
+                    <div className="space-y-12 animate-in slide-in-from-bottom-8 fade-in duration-700 ease-out">
+                        <div className="space-y-3 text-center">
+                            <h1 className="text-4xl font-extrabold tracking-tight text-gray-900">Project Type</h1>
+                            <p className="text-xl text-gray-500 font-light">What kind of space are we designing today?</p>
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                            {['Residential', 'Commercial'].map((s) => (
+                                <div
+                                    key={s}
+                                    onClick={() => setSegment(s as any)}
+                                    className={cn(
+                                        "cursor-pointer group relative overflow-hidden rounded-3xl border-2 p-10 transition-all duration-300 hover:shadow-2xl hover:-translate-y-2",
+                                        segment === s
+                                            ? "border-black bg-white ring-4 ring-black/5 shadow-xl"
+                                            : "border-gray-100 bg-white hover:border-gray-200"
+                                    )}
+                                >
+                                    <div className="space-y-6 flex flex-col items-center">
+                                        <div className={cn(
+                                            "h-24 w-24 rounded-full flex items-center justify-center transition-all duration-300 shadow-sm",
+                                            segment === s ? "bg-black text-white scale-110" : "bg-gray-50 text-gray-400 group-hover:bg-gray-100 group-hover:scale-110"
+                                        )}>
+                                            {s === 'Residential' ? <Home className="h-10 w-10" /> : <Building2 className="h-10 w-10" />}
+                                        </div>
+                                        <h3 className="text-3xl font-bold tracking-tight">{s}</h3>
+                                        <p className="text-center text-gray-500 leading-relaxed px-4">
+                                            {s === 'Residential' ? 'Homes, Apartments, and Villas' : 'Offices, Retail, and Workspaces'}
+                                        </p>
+                                    </div>
+                                    {segment === s && (
+                                        <div className="absolute top-6 right-6 text-black bg-black/5 rounded-full p-1">
+                                            <CheckCircle2 className="h-6 w-6" />
+                                        </div>
+                                    )}
+                                </div>
+                            ))}
+                        </div>
                     </div>
                 )}
-            </Card>
+
+                {/* Step 2: Plan */}
+                {step === 2 && (
+                    <div className="space-y-12 animate-in slide-in-from-bottom-8 fade-in duration-700 ease-out">
+                        <div className="text-center space-y-3">
+                            <h1 className="text-4xl font-extrabold tracking-tight text-gray-900">Select Plan</h1>
+                            <p className="text-xl text-gray-500 font-light">Choose a tier that matches your vision</p>
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                            {(['Basic', 'Standard', 'Luxe'] as Plan[]).map(plan => (
+                                <button
+                                    key={plan}
+                                    onClick={() => setSelectedPlan(plan)}
+                                    className={cn(
+                                        "relative p-8 border-2 rounded-3xl text-center transition-all duration-300 hover:shadow-xl hover:-translate-y-2 group flex flex-col justify-center min-h-[240px]",
+                                        selectedPlan === plan
+                                            ? "border-black bg-white ring-4 ring-black/5 shadow-xl scale-[1.02]"
+                                            : "border-gray-100 bg-white hover:border-gray-200"
+                                    )}
+                                >
+                                    <div className="space-y-4">
+                                        <div className={cn(
+                                            "inline-flex px-4 py-1.5 rounded-full text-xs font-bold uppercase tracking-widest mb-2",
+                                            selectedPlan === plan ? "bg-black text-white" : "bg-gray-100 text-gray-500"
+                                        )}>
+                                            {plan === 'Basic' && 'Essential'}
+                                            {plan === 'Standard' && 'Popular'}
+                                            {plan === 'Luxe' && 'Premium'}
+                                        </div>
+                                        <p className="font-bold text-3xl text-[#0F172A]">{plan}</p>
+                                        <p className="text-sm text-gray-500 leading-relaxed">
+                                            {plan === 'Basic' && 'Perfect for simple updates'}
+                                            {plan === 'Standard' && 'Balanced design & quality'}
+                                            {plan === 'Luxe' && 'Top-tier finishes & customized'}
+                                        </p>
+                                    </div>
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+                )}
+
+                {/* Step 3: Project Basics */}
+                {step === 3 && (
+                    <div className="space-y-12 animate-in slide-in-from-bottom-8 fade-in duration-700 ease-out">
+                        <div className="text-center space-y-3">
+                            <h1 className="text-4xl font-extrabold tracking-tight text-gray-900">Project Basics</h1>
+                            <p className="text-xl text-gray-500 font-light">Tell us about the space dimensions</p>
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-10 max-w-2xl mx-auto bg-white p-8 rounded-3xl shadow-sm border border-gray-100">
+                            <div className="space-y-3">
+                                <Label className="text-xs font-bold uppercase tracking-widest text-gray-400 ml-1">Carpet Area (sqft)</Label>
+                                <Input
+                                    type="number"
+                                    placeholder="e.g 1200"
+                                    className="h-16 text-2xl font-light bg-gray-50 border-0 focus:ring-2 focus:ring-black/5 rounded-2xl transition-all pl-6"
+                                    value={carpetArea}
+                                    onChange={(e) => setCarpetArea(e.target.value)}
+                                    autoFocus
+                                />
+                            </div>
+                            <div className="space-y-3">
+                                <Label className="text-xs font-bold uppercase tracking-widest text-gray-400 ml-1">Bedrooms</Label>
+                                <div className="flex items-center gap-4 bg-gray-50 rounded-2xl p-2 h-16">
+                                    <Button size="icon" variant="ghost" className="h-12 w-12 rounded-xl hover:bg-white shadow-sm" onClick={() => setBedroomCount(Math.max(0, bedroomCount - 1))}><Minus className="h-5 w-5" /></Button>
+                                    <div className="flex-1 text-center font-bold text-2xl">{bedroomCount}</div>
+                                    <Button size="icon" variant="ghost" className="h-12 w-12 rounded-xl hover:bg-white shadow-sm" onClick={() => setBedroomCount(bedroomCount + 1)}><Plus className="h-5 w-5" /></Button>
+                                </div>
+                            </div>
+                            <div className="space-y-3 md:col-span-2">
+                                <Label className="text-xs font-bold uppercase tracking-widest text-gray-400 ml-1">Bathrooms</Label>
+                                <div className="flex items-center gap-4 bg-gray-50 rounded-2xl p-2 h-16 w-full md:w-2/3 mx-auto">
+                                    <Button size="icon" variant="ghost" className="h-12 w-12 rounded-xl hover:bg-white shadow-sm" onClick={() => setBathroomCount(Math.max(0, bathroomCount - 1))}><Minus className="h-5 w-5" /></Button>
+                                    <div className="flex-1 text-center font-bold text-2xl">{bathroomCount}</div>
+                                    <Button size="icon" variant="ghost" className="h-12 w-12 rounded-xl hover:bg-white shadow-sm" onClick={() => setBathroomCount(bathroomCount + 1)}><Plus className="h-5 w-5" /></Button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {/* Step 4: Essentials Configuration */}
+                {step === 4 && (
+                    <div className="space-y-12 animate-in slide-in-from-bottom-8 fade-in duration-700 ease-out">
+                        <div className="text-center space-y-3">
+                            <h1 className="text-4xl font-extrabold tracking-tight text-gray-900">Configure Details</h1>
+                            <p className="text-xl text-gray-500 font-light">Customize essentials for each room</p>
+                        </div>
+
+                        <div className="space-y-16">
+                            {/* Living Area */}
+                            {livingAreaCategory && livingAreaCategory.items.filter(i => i.enabled).length > 0 && (
+                                <div className="space-y-6">
+                                    <div className="flex items-center gap-4 border-b border-gray-100 pb-4">
+                                        <div className="h-10 w-1 bg-black rounded-full"></div>
+                                        <h2 className="text-2xl font-bold text-[#0F172A]">Living Area</h2>
+                                    </div>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        {livingAreaCategory.items.filter(i => i.enabled).map(item => (
+                                            <div key={item.id} className="flex items-center justify-between p-6 border border-gray-100 bg-white rounded-2xl hover:shadow-lg transition-all duration-300">
+                                                <span className="font-semibold text-lg text-gray-700">{item.name}</span>
+                                                <div className="flex items-center gap-3 bg-gray-50 rounded-xl p-1">
+                                                    <Button
+                                                        size="icon"
+                                                        variant="ghost"
+                                                        className="h-8 w-8 rounded-lg hover:bg-white hover:shadow-sm"
+                                                        onClick={() => updateItemQuantity('livingArea', item.id, -1)}
+                                                    >
+                                                        <Minus className="h-4 w-4" />
+                                                    </Button>
+                                                    <span className="w-8 text-center font-bold text-lg">{livingAreaItems[item.id] || 0}</span>
+                                                    <Button
+                                                        size="icon"
+                                                        variant="ghost"
+                                                        className="h-8 w-8 rounded-lg hover:bg-white hover:shadow-sm"
+                                                        onClick={() => updateItemQuantity('livingArea', item.id, 1)}
+                                                    >
+                                                        <Plus className="h-4 w-4" />
+                                                    </Button>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Kitchen */}
+                            {kitchenCategory && (
+                                <div className="space-y-6">
+                                    <div className="flex items-center gap-4 border-b border-gray-100 pb-4">
+                                        <div className="h-10 w-1 bg-black rounded-full"></div>
+                                        <h2 className="text-2xl font-bold text-[#0F172A]">Kitchen</h2>
+                                    </div>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                                        <div className="space-y-3">
+                                            <Label className="uppercase text-xs font-bold text-gray-400">Layout</Label>
+                                            <Select value={kitchenLayout} onValueChange={setKitchenLayout}>
+                                                <SelectTrigger className="h-14 rounded-2xl bg-white border border-gray-200 text-lg">
+                                                    <SelectValue placeholder="Select layout" />
+                                                </SelectTrigger>
+                                                <SelectContent>
+                                                    {config?.kitchenLayouts?.filter(l => l.enabled).map(layout => (
+                                                        <SelectItem key={layout.id} value={layout.name}>{layout.name}</SelectItem>
+                                                    ))}
+                                                </SelectContent>
+                                            </Select>
+                                        </div>
+                                        <div className="space-y-3">
+                                            <Label className="uppercase text-xs font-bold text-gray-400">Material</Label>
+                                            <Select value={kitchenMaterial} onValueChange={setKitchenMaterial}>
+                                                <SelectTrigger className="h-14 rounded-2xl bg-white border border-gray-200 text-lg">
+                                                    <SelectValue placeholder="Select material" />
+                                                </SelectTrigger>
+                                                <SelectContent>
+                                                    {config?.kitchenMaterials?.filter(m => m.enabled).map(material => (
+                                                        <SelectItem key={material.id} value={material.name}>{material.name}</SelectItem>
+                                                    ))}
+                                                </SelectContent>
+                                            </Select>
+                                        </div>
+                                    </div>
+                                    {kitchenCategory.items.filter(i => i.enabled).length > 0 && (
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                            {kitchenCategory.items.filter(i => i.enabled).map(item => (
+                                                <div key={item.id} className="flex items-center justify-between p-6 border border-gray-100 bg-white rounded-2xl hover:shadow-lg transition-all duration-300">
+                                                    <span className="font-semibold text-lg text-gray-700">{item.name}</span>
+                                                    <div className="flex items-center gap-3 bg-gray-50 rounded-xl p-1">
+                                                        <Button
+                                                            size="icon"
+                                                            variant="ghost"
+                                                            className="h-8 w-8 rounded-lg hover:bg-white hover:shadow-sm"
+                                                            onClick={() => updateItemQuantity('kitchen', item.id, -1)}
+                                                        >
+                                                            <Minus className="h-4 w-4" />
+                                                        </Button>
+                                                        <span className="w-8 text-center font-bold text-lg">{kitchenItems[item.id] || 0}</span>
+                                                        <Button
+                                                            size="icon"
+                                                            variant="ghost"
+                                                            className="h-8 w-8 rounded-lg hover:bg-white hover:shadow-sm"
+                                                            onClick={() => updateItemQuantity('kitchen', item.id, 1)}
+                                                        >
+                                                            <Plus className="h-4 w-4" />
+                                                        </Button>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+
+                            {/* Bedrooms */}
+                            {bedroomCount > 0 && bedroomCategory && (
+                                <div className="space-y-6">
+                                    <div className="flex items-center gap-4 border-b border-gray-100 pb-4">
+                                        <div className="h-10 w-1 bg-black rounded-full"></div>
+                                        <h2 className="text-2xl font-bold text-[#0F172A]">Bedrooms</h2>
+                                    </div>
+                                    {bedrooms.map((bedroom, index) => (
+                                        <div key={index} className="space-y-4 p-8 bg-gray-50/50 rounded-3xl border border-gray-100">
+                                            <h3 className="font-bold text-lg text-gray-400 uppercase tracking-widest mb-4">Bedroom {index + 1}</h3>
+                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                                {bedroomCategory.items.filter(i => i.enabled).map(item => (
+                                                    <div key={item.id} className="flex items-center justify-between p-5 border border-gray-100 bg-white rounded-2xl hover:border-gray-300 transition-colors">
+                                                        <span className="font-medium">{item.name}</span>
+                                                        <div className="flex items-center gap-3 bg-gray-50 rounded-lg p-1">
+                                                            <Button size="icon" variant="ghost" className="h-7 w-7 rounded-md hover:bg-white hover:shadow-sm" onClick={() => updateItemQuantity('bedroom', item.id, -1, index)}><Minus className="h-3 w-3" /></Button>
+                                                            <span className="w-6 text-center font-bold text-sm">{bedroom.items[item.id] || 0}</span>
+                                                            <Button size="icon" variant="ghost" className="h-7 w-7 rounded-md hover:bg-white hover:shadow-sm" onClick={() => updateItemQuantity('bedroom', item.id, 1, index)}><Plus className="h-3 w-3" /></Button>
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+
+                            {/* Bathrooms */}
+                            {bathroomCount > 0 && bathroomCategory && (
+                                <div className="space-y-6">
+                                    <div className="flex items-center gap-4 border-b border-gray-100 pb-4">
+                                        <div className="h-10 w-1 bg-black rounded-full"></div>
+                                        <h2 className="text-2xl font-bold text-[#0F172A]">Bathrooms</h2>
+                                    </div>
+                                    {bathrooms.map((bathroom, index) => (
+                                        <div key={index} className="space-y-4 p-8 bg-gray-50/50 rounded-3xl border border-gray-100">
+                                            <h3 className="font-bold text-lg text-gray-400 uppercase tracking-widest mb-4">Bathroom {index + 1}</h3>
+                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                                {bathroomCategory.items.filter(i => i.enabled).map(item => (
+                                                    <div key={item.id} className="flex items-center justify-between p-5 border border-gray-100 bg-white rounded-2xl hover:border-gray-300 transition-colors">
+                                                        <span className="font-medium">{item.name}</span>
+                                                        <div className="flex items-center gap-3 bg-gray-50 rounded-lg p-1">
+                                                            <Button size="icon" variant="ghost" className="h-7 w-7 rounded-md hover:bg-white hover:shadow-sm" onClick={() => updateItemQuantity('bathroom', item.id, -1, index)}><Minus className="h-3 w-3" /></Button>
+                                                            <span className="w-6 text-center font-bold text-sm">{bathroom.items[item.id] || 0}</span>
+                                                            <Button size="icon" variant="ghost" className="h-7 w-7 rounded-md hover:bg-white hover:shadow-sm" onClick={() => updateItemQuantity('bathroom', item.id, 1, index)}><Plus className="h-3 w-3" /></Button>
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                )}
+
+                {/* Step 5: Review & Submit */}
+                {step === 5 && (
+                    <div className="space-y-12 animate-in slide-in-from-bottom-8 fade-in duration-700 ease-out">
+                        <div className="text-center space-y-3">
+                            <h1 className="text-4xl font-extrabold tracking-tight text-gray-900">Final Review</h1>
+                            <p className="text-xl text-gray-500 font-light">Confirm your details and receive estimate</p>
+                        </div>
+
+                        <div className="bg-black rounded-3xl p-10 text-white text-center shadow-2xl transform hover:scale-[1.01] transition-transform duration-500 relative overflow-hidden">
+                            <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2"></div>
+                            <div className="relative z-10">
+                                <p className="text-gray-400 font-bold mb-3 uppercase tracking-widest text-xs">Estimated Cost</p>
+                                <div className="text-6xl font-bold mb-3 tracking-tight">₹ {currentTotal.toLocaleString('en-IN')}</div>
+                                <p className="text-sm opacity-60 font-medium">Based on {selectedPlan} Plan</p>
+                            </div>
+                        </div>
+
+                        <div className="space-y-6 max-w-2xl mx-auto bg-white p-8 rounded-3xl border border-gray-100 shadow-sm">
+                            <h3 className="font-bold text-lg border-b border-gray-100 pb-4 text-gray-900">Customer Details</h3>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                <div className="space-y-2">
+                                    <Label className="text-xs font-bold uppercase text-gray-500">Full Name</Label>
+                                    <Input value={customerName} onChange={(e) => setCustomerName(e.target.value)} className="h-14 bg-gray-50 border-0 rounded-xl px-4 text-lg" placeholder="John Doe" />
+                                </div>
+                                <div className="space-y-2">
+                                    <Label className="text-xs font-bold uppercase text-gray-500">Phone</Label>
+                                    <Input value={customerPhone} onChange={(e) => setCustomerPhone(e.target.value)} className="h-14 bg-gray-50 border-0 rounded-xl px-4 text-lg" placeholder="+91 98765 43210" />
+                                </div>
+                                <div className="space-y-2 md:col-span-2">
+                                    <Label className="text-xs font-bold uppercase text-gray-500">Email</Label>
+                                    <Input type="email" value={customerEmail} onChange={(e) => setCustomerEmail(e.target.value)} className="h-14 bg-gray-50 border-0 rounded-xl px-4 text-lg" placeholder="john@example.com" />
+                                </div>
+                                <div className="space-y-2 md:col-span-2">
+                                    <Label className="text-xs font-bold uppercase text-gray-500">City</Label>
+                                    <Select value={selectedCity} onValueChange={setSelectedCity}>
+                                        <SelectTrigger className="h-14 bg-gray-50 border-0 rounded-xl px-4 text-lg"><SelectValue placeholder="Select City" /></SelectTrigger>
+                                        <SelectContent>
+                                            {enabledCities.map(city => (<SelectItem key={city.id} value={city.name}>{city.name}</SelectItem>))}
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                )}
+            </main>
+
+            {/* Sticky Footer */}
+            <div className="fixed bottom-0 left-0 right-0 bg-white/80 backdrop-blur-xl border-t border-gray-100 p-4 z-50">
+                <div className="max-w-4xl mx-auto flex justify-between items-center px-4">
+                    <Button
+                        variant="ghost"
+                        disabled={step === 1}
+                        onClick={() => setStep(s => s - 1)}
+                        className="text-gray-500 hover:text-black font-semibold h-12 px-6 rounded-xl hover:bg-gray-100"
+                    >
+                        <ArrowLeft className="mr-2 h-5 w-5" /> Back
+                    </Button>
+
+                    {step < 5 ? (
+                        <Button
+                            className="bg-black text-white hover:bg-gray-800 rounded-full px-10 py-7 text-lg font-bold shadow-lg hover:shadow-xl hover:scale-105 transition-all duration-300"
+                            onClick={() => setStep(s => s + 1)}
+                            disabled={!isStepValid()}
+                        >
+                            Continue <ChevronRight className="ml-2 h-5 w-5" />
+                        </Button>
+                    ) : (
+                        <Button
+                            className="bg-black text-white hover:bg-gray-800 rounded-full px-10 py-7 text-lg font-bold shadow-lg hover:shadow-xl hover:scale-105 transition-all duration-300"
+                            onClick={handleSubmit}
+                            disabled={isSubmitting || !isStepValid()}
+                        >
+                            {isSubmitting ? <><Loader2 className="mr-2 animate-spin" /> Submitting...</> : "Confirm & Submit"}
+                        </Button>
+                    )}
+                </div>
+            </div>
         </div>
     );
 }

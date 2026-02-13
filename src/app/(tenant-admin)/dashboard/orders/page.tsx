@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Search, Download, Package, FileText, Eye, User, Home, Layers, IndianRupee, X, Pencil } from "lucide-react";
+import { Search, Download, Package, FileText, Eye, User, Home, Layers, IndianRupee, X } from "lucide-react";
 import { useTenantAuth } from "@/hooks/useTenantAuth";
 import { useOrders, Order } from "@/hooks/useOrders";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -25,27 +25,16 @@ import {
 
 export default function OrdersPage() {
     const { tenant } = useTenantAuth();
-    const { orders, stats, loading, updateOrderStatus, updateOrderDetails } = useOrders(tenant?.id || null, tenant?.storeId || null);
+    const { orders, stats, loading, updateOrderStatus } = useOrders(tenant?.id || null);
     const [searchQuery, setSearchQuery] = useState("");
     const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
     const [isDetailsOpen, setIsDetailsOpen] = useState(false);
-    const [isEditing, setIsEditing] = useState(false);
-    const [isSaving, setIsSaving] = useState(false);
-    const [editForm, setEditForm] = useState({
-        clientName: "",
-        clientEmail: "",
-        clientPhone: "",
-        carpetArea: "",
-        numberOfRooms: "",
-        materialGrade: "",
-        finishType: "",
-    });
 
     const searchLower = searchQuery.toLowerCase();
     const filteredOrders = orders.filter(o =>
-        o.clientName?.toLowerCase()?.includes(searchLower) ||
-        o.clientPhone?.includes(searchQuery) ||
-        o.clientEmail?.toLowerCase()?.includes(searchLower)
+        (o.customerInfo?.name || o.clientName || "").toLowerCase().includes(searchLower) ||
+        (o.customerInfo?.phone || o.clientPhone || "").includes(searchQuery) ||
+        (o.customerInfo?.email || o.clientEmail || "").toLowerCase().includes(searchLower)
     );
 
     const getStatusColor = (status: string) => {
@@ -75,53 +64,13 @@ export default function OrdersPage() {
     const openDetails = (order: Order) => {
         setSelectedOrder(order);
         setIsDetailsOpen(true);
-        setIsEditing(false);
-    };
-
-    const startEditing = () => {
-        if (selectedOrder) {
-            setEditForm({
-                clientName: selectedOrder.clientName || "",
-                clientEmail: selectedOrder.clientEmail || "",
-                clientPhone: selectedOrder.clientPhone || "",
-                carpetArea: selectedOrder.carpetArea?.toString() || "",
-                numberOfRooms: selectedOrder.numberOfRooms?.toString() || "",
-                materialGrade: selectedOrder.materialGrade || "",
-                finishType: selectedOrder.finishType || "",
-            });
-            setIsEditing(true);
-        }
-    };
-
-    const cancelEditing = () => {
-        setIsEditing(false);
-    };
-
-    const handleSaveChanges = async () => {
-        if (!selectedOrder) return;
-
-        setIsSaving(true);
-        const updates: Partial<Order> = {
-            clientName: editForm.clientName,
-            clientEmail: editForm.clientEmail,
-            clientPhone: editForm.clientPhone,
-            carpetArea: editForm.carpetArea ? parseInt(editForm.carpetArea) : undefined,
-            numberOfRooms: editForm.numberOfRooms ? parseInt(editForm.numberOfRooms) : undefined,
-            materialGrade: editForm.materialGrade,
-            finishType: editForm.finishType,
-        };
-
-        const success = await updateOrderDetails(selectedOrder.id, updates);
-        if (success) {
-            setSelectedOrder({ ...selectedOrder, ...updates });
-            setIsEditing(false);
-        }
-        setIsSaving(false);
     };
 
     const formatDate = (timestamp: any) => {
         if (!timestamp) return "-";
-        return timestamp.toDate().toLocaleDateString("en-US", {
+        // Handle Firestore timestamp
+        const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
+        return date.toLocaleDateString("en-US", {
             month: "short",
             day: "numeric",
             year: "numeric"
@@ -130,7 +79,8 @@ export default function OrdersPage() {
 
     const formatDateTime = (timestamp: any) => {
         if (!timestamp) return "-";
-        return timestamp.toDate().toLocaleString("en-US", {
+        const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
+        return date.toLocaleString("en-US", {
             month: "short",
             day: "numeric",
             year: "numeric",
@@ -142,9 +92,7 @@ export default function OrdersPage() {
 
     const formatAmount = (amount: number | undefined) => {
         if (amount === undefined || amount === null) return "-";
-        return amount >= 100000
-            ? `₹${(amount / 100000).toFixed(1)}L`
-            : `₹${amount.toLocaleString('en-IN')}`;
+        return `₹${amount.toLocaleString('en-IN')}`;
     };
 
     if (loading) {
@@ -224,7 +172,8 @@ export default function OrdersPage() {
                             <TableHeader>
                                 <TableRow className="bg-gray-50/50 hover:bg-transparent">
                                     <TableHead className="text-[10px] font-bold text-gray-400 uppercase">Client</TableHead>
-                                    <TableHead className="text-[10px] font-bold text-gray-400 uppercase">Phone</TableHead>
+                                    <TableHead className="text-[10px] font-bold text-gray-400 uppercase">City</TableHead>
+                                    <TableHead className="text-[10px] font-bold text-gray-400 uppercase">Plan</TableHead>
                                     <TableHead className="text-[10px] font-bold text-gray-400 uppercase">Amount</TableHead>
                                     <TableHead className="text-[10px] font-bold text-gray-400 uppercase">Status</TableHead>
                                     <TableHead className="text-[10px] font-bold text-gray-400 uppercase">Date</TableHead>
@@ -235,17 +184,21 @@ export default function OrdersPage() {
                                 {filteredOrders.map((order) => (
                                     <TableRow key={order.id} className="cursor-pointer hover:bg-gray-50" onClick={() => openDetails(order)}>
                                         <TableCell>
-                                            <div className="font-semibold text-gray-900">{order.clientName || "-"}</div>
+                                            <div className="font-semibold text-gray-900">{order.customerInfo?.name || order.clientName || "-"}</div>
+                                            <div className="text-xs text-gray-500">{order.customerInfo?.phone || order.clientPhone}</div>
                                         </TableCell>
                                         <TableCell className="text-gray-600">
-                                            {order.clientPhone || "-"}
-                                        </TableCell>
-                                        <TableCell className="font-bold text-gray-900">
-                                            {formatAmount(order.estimatedAmount)}
+                                            {order.customerInfo?.city || "-"}
                                         </TableCell>
                                         <TableCell>
-                                            <Badge className={cn("capitalize px-3 py-1 border-none", getStatusColor(order.status))}>
-                                                {order.status}
+                                            {order.plan ? <Badge variant="outline">{order.plan}</Badge> : "-"}
+                                        </TableCell>
+                                        <TableCell className="font-bold text-gray-900">
+                                            {formatAmount(order.totalAmount || order.estimatedAmount)}
+                                        </TableCell>
+                                        <TableCell>
+                                            <Badge className={cn("capitalize px-3 py-1 border-none", getStatusColor(order.status || 'pending'))}>
+                                                {order.status || 'pending'}
                                             </Badge>
                                         </TableCell>
                                         <TableCell className="text-gray-500 text-sm">
@@ -272,12 +225,15 @@ export default function OrdersPage() {
 
             {/* Order Details Modal */}
             <Dialog open={isDetailsOpen} onOpenChange={setIsDetailsOpen}>
-                <DialogContent className="max-w-[720px] h-[85vh] overflow-hidden flex flex-col">
+                <DialogContent className="max-w-[800px] h-[90vh] overflow-hidden flex flex-col">
                     {selectedOrder && (
                         <>
                             {/* Sticky Header */}
                             <div className="shrink-0 bg-white px-6 py-4 border-b border-gray-200 flex items-center justify-between">
-                                <h2 className="text-lg font-semibold text-gray-900">Order Details</h2>
+                                <div>
+                                    <h2 className="text-lg font-semibold text-gray-900">Estimate Details</h2>
+                                    <p className="text-xs text-gray-500">ID: {selectedOrder.id}</p>
+                                </div>
                                 <DialogClose asChild>
                                     <button className="rounded-full p-1.5 hover:bg-gray-100 transition-colors">
                                         <X className="h-5 w-5 text-gray-500" />
@@ -286,299 +242,152 @@ export default function OrdersPage() {
                             </div>
 
                             {/* Scrollable Content */}
-                            <div className="flex-1 min-h-0 overflow-y-auto px-6 py-5 space-y-4">
-                                {isEditing ? (
-                                    /* Edit Mode */
-                                    <div className="space-y-4">
-                                        {/* Client Information - Edit */}
-                                        <div className="bg-gray-50 rounded-lg p-4">
-                                            <div className="flex items-center gap-2 text-sm font-semibold text-gray-800 mb-4">
-                                                <User className="h-4 w-4 text-gray-500" />
-                                                Client Information
-                                            </div>
-                                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                                <div>
-                                                    <label className="text-xs text-gray-500 uppercase tracking-wide mb-1 block">Full Name</label>
-                                                    <Input
-                                                        value={editForm.clientName}
-                                                        onChange={(e) => setEditForm({ ...editForm, clientName: e.target.value })}
-                                                        className="bg-white"
-                                                    />
-                                                </div>
-                                                <div>
-                                                    <label className="text-xs text-gray-500 uppercase tracking-wide mb-1 block">Phone Number</label>
-                                                    <Input
-                                                        value={editForm.clientPhone}
-                                                        onChange={(e) => setEditForm({ ...editForm, clientPhone: e.target.value })}
-                                                        className="bg-white"
-                                                    />
-                                                </div>
-                                                <div>
-                                                    <label className="text-xs text-gray-500 uppercase tracking-wide mb-1 block">Email</label>
-                                                    <Input
-                                                        type="email"
-                                                        value={editForm.clientEmail}
-                                                        onChange={(e) => setEditForm({ ...editForm, clientEmail: e.target.value })}
-                                                        className="bg-white"
-                                                    />
-                                                </div>
-                                                <div>
-                                                    <p className="text-xs text-gray-500 uppercase tracking-wide mb-1">Estimate ID</p>
-                                                    <p className="text-sm font-mono text-gray-600 py-2">{selectedOrder.estimateId}</p>
-                                                </div>
-                                            </div>
-                                        </div>
+                            <div className="flex-1 min-h-0 overflow-y-auto px-6 py-5 space-y-6">
 
-                                        {/* Project Details - Edit */}
-                                        <div className="bg-gray-50 rounded-lg p-4">
-                                            <div className="flex items-center gap-2 text-sm font-semibold text-gray-800 mb-4">
-                                                <Home className="h-4 w-4 text-gray-500" />
-                                                Project Details
-                                            </div>
-                                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                                <div>
-                                                    <label className="text-xs text-gray-500 uppercase tracking-wide mb-1 block">Carpet Area (sqft)</label>
-                                                    <Input
-                                                        type="number"
-                                                        value={editForm.carpetArea}
-                                                        onChange={(e) => setEditForm({ ...editForm, carpetArea: e.target.value })}
-                                                        className="bg-white"
-                                                    />
-                                                </div>
-                                                <div>
-                                                    <label className="text-xs text-gray-500 uppercase tracking-wide mb-1 block">Number of Rooms</label>
-                                                    <Input
-                                                        type="number"
-                                                        value={editForm.numberOfRooms}
-                                                        onChange={(e) => setEditForm({ ...editForm, numberOfRooms: e.target.value })}
-                                                        className="bg-white"
-                                                    />
-                                                </div>
-                                                {(selectedOrder.rooms || selectedOrder.selectedRooms) && (selectedOrder.rooms || selectedOrder.selectedRooms)!.length > 0 && (
-                                                    <div className="col-span-1 sm:col-span-2">
-                                                        <p className="text-xs text-gray-500 uppercase tracking-wide mb-2">Selected Rooms</p>
-                                                        <div className="flex flex-wrap gap-2">
-                                                            {(selectedOrder.rooms || selectedOrder.selectedRooms)!.map((room, idx) => (
-                                                                <Badge key={idx} variant="secondary" className="text-xs bg-white border border-gray-200">
-                                                                    {room}
-                                                                </Badge>
-                                                            ))}
-                                                        </div>
-                                                    </div>
-                                                )}
-                                            </div>
+                                {/* Client Information */}
+                                <div className="bg-gray-50 rounded-lg p-4">
+                                    <div className="flex items-center gap-2 text-sm font-semibold text-gray-800 mb-4">
+                                        <User className="h-4 w-4 text-gray-500" />
+                                        Customer Information
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <div>
+                                            <p className="text-xs text-gray-500 uppercase tracking-wide mb-1">Name</p>
+                                            <p className="text-sm font-medium text-gray-900">{selectedOrder.customerInfo?.name || selectedOrder.clientName}</p>
                                         </div>
-
-                                        {/* Specifications - Edit */}
-                                        <div className="bg-gray-50 rounded-lg p-4">
-                                            <div className="flex items-center gap-2 text-sm font-semibold text-gray-800 mb-4">
-                                                <Layers className="h-4 w-4 text-gray-500" />
-                                                Specifications
-                                            </div>
-                                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                                <div>
-                                                    <label className="text-xs text-gray-500 uppercase tracking-wide mb-1 block">Material Grade</label>
-                                                    <Input
-                                                        value={editForm.materialGrade}
-                                                        onChange={(e) => setEditForm({ ...editForm, materialGrade: e.target.value })}
-                                                        className="bg-white"
-                                                    />
-                                                </div>
-                                                <div>
-                                                    <label className="text-xs text-gray-500 uppercase tracking-wide mb-1 block">Finish Type</label>
-                                                    <Input
-                                                        value={editForm.finishType}
-                                                        onChange={(e) => setEditForm({ ...editForm, finishType: e.target.value })}
-                                                        className="bg-white"
-                                                    />
-                                                </div>
-                                            </div>
+                                        <div>
+                                            <p className="text-xs text-gray-500 uppercase tracking-wide mb-1">Phone</p>
+                                            <p className="text-sm font-medium text-gray-900">{selectedOrder.customerInfo?.phone || selectedOrder.clientPhone}</p>
+                                        </div>
+                                        <div>
+                                            <p className="text-xs text-gray-500 uppercase tracking-wide mb-1">Email</p>
+                                            <p className="text-sm font-medium text-gray-900">{selectedOrder.customerInfo?.email || selectedOrder.clientEmail}</p>
+                                        </div>
+                                        <div>
+                                            <p className="text-xs text-gray-500 uppercase tracking-wide mb-1">City</p>
+                                            <p className="text-sm font-medium text-gray-900">{selectedOrder.customerInfo?.city || "-"}</p>
                                         </div>
                                     </div>
-                                ) : (
-                                    /* View Mode */
-                                    <>
-                                        {/* Client Information */}
-                                        <div className="bg-gray-50 rounded-lg p-4">
-                                            <div className="flex items-center justify-between mb-4">
-                                                <div className="flex items-center gap-2 text-sm font-semibold text-gray-800">
-                                                    <User className="h-4 w-4 text-gray-500" />
-                                                    Client Information
-                                                </div>
-                                                <Button
-                                                    size="sm"
-                                                    variant="outline"
-                                                    className="h-8 text-xs border-blue-200 text-blue-600 hover:bg-blue-50"
-                                                    onClick={startEditing}
-                                                >
-                                                    <Pencil className="h-3.5 w-3.5 mr-1" />
-                                                    Update
-                                                </Button>
-                                            </div>
-                                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                                {selectedOrder.clientName && (
-                                                    <div>
-                                                        <p className="text-xs text-gray-500 uppercase tracking-wide mb-1">Full Name</p>
-                                                        <p className="text-sm font-medium text-gray-900">{selectedOrder.clientName}</p>
-                                                    </div>
-                                                )}
-                                                {selectedOrder.clientPhone && (
-                                                    <div>
-                                                        <p className="text-xs text-gray-500 uppercase tracking-wide mb-1">Phone Number</p>
-                                                        <p className="text-sm font-medium text-gray-900">{selectedOrder.clientPhone}</p>
-                                                    </div>
-                                                )}
-                                                {selectedOrder.clientEmail && (
-                                                    <div>
-                                                        <p className="text-xs text-gray-500 uppercase tracking-wide mb-1">Email</p>
-                                                        <p className="text-sm font-medium text-gray-900">{selectedOrder.clientEmail}</p>
-                                                    </div>
-                                                )}
-                                                <div>
-                                                    <p className="text-xs text-gray-500 uppercase tracking-wide mb-1">Estimate ID</p>
-                                                    <p className="text-sm font-mono text-gray-600">{selectedOrder.estimateId}</p>
-                                                </div>
-                                            </div>
-                                        </div>
+                                </div>
 
-                                        {/* Project Details */}
-                                        <div className="bg-gray-50 rounded-lg p-4">
-                                            <div className="flex items-center gap-2 text-sm font-semibold text-gray-800 mb-4">
-                                                <Home className="h-4 w-4 text-gray-500" />
-                                                Project Details
-                                            </div>
-                                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                                {selectedOrder.carpetArea !== undefined && (
-                                                    <div>
-                                                        <p className="text-xs text-gray-500 uppercase tracking-wide mb-1">Carpet Area</p>
-                                                        <p className="text-sm font-medium text-gray-900">{selectedOrder.carpetArea} sqft</p>
-                                                    </div>
-                                                )}
-                                                {selectedOrder.numberOfRooms !== undefined && (
-                                                    <div>
-                                                        <p className="text-xs text-gray-500 uppercase tracking-wide mb-1">Number of Rooms</p>
-                                                        <p className="text-sm font-medium text-gray-900">{selectedOrder.numberOfRooms}</p>
-                                                    </div>
-                                                )}
-                                                {(selectedOrder.rooms || selectedOrder.selectedRooms) && (selectedOrder.rooms || selectedOrder.selectedRooms)!.length > 0 && (
-                                                    <div className="col-span-1 sm:col-span-2">
-                                                        <p className="text-xs text-gray-500 uppercase tracking-wide mb-2">Selected Rooms</p>
-                                                        <div className="flex flex-wrap gap-2">
-                                                            {(selectedOrder.rooms || selectedOrder.selectedRooms)!.map((room, idx) => (
-                                                                <Badge key={idx} variant="secondary" className="text-xs bg-white border border-gray-200">
-                                                                    {room}
-                                                                </Badge>
-                                                            ))}
-                                                        </div>
-                                                    </div>
-                                                )}
-                                            </div>
+                                {/* Project Overview */}
+                                <div className="bg-white border rounded-lg p-4">
+                                    <div className="flex items-center gap-2 text-sm font-semibold text-gray-800 mb-4">
+                                        <Home className="h-4 w-4 text-gray-500" />
+                                        Project Overview
+                                    </div>
+                                    <div className="grid grid-cols-3 gap-4">
+                                        <div className="bg-blue-50 p-3 rounded-md">
+                                            <p className="text-xs text-blue-600 uppercase tracking-wide mb-1">Plan</p>
+                                            <p className="font-bold text-blue-900">{selectedOrder.plan || "-"}</p>
                                         </div>
+                                        <div className="bg-gray-50 p-3 rounded-md">
+                                            <p className="text-xs text-gray-500 uppercase tracking-wide mb-1">Segment</p>
+                                            <p className="font-medium text-gray-900">{selectedOrder.segment || "-"}</p>
+                                        </div>
+                                        <div className="bg-gray-50 p-3 rounded-md">
+                                            <p className="text-xs text-gray-500 uppercase tracking-wide mb-1">Carpet Area</p>
+                                            <p className="font-medium text-gray-900">{selectedOrder.carpetArea} sqft</p>
+                                        </div>
+                                        <div className="bg-gray-50 p-3 rounded-md">
+                                            <p className="text-xs text-gray-500 uppercase tracking-wide mb-1">Bedrooms</p>
+                                            <p className="font-medium text-gray-900">{selectedOrder.bedrooms || selectedOrder.numberOfRooms || 0}</p>
+                                        </div>
+                                        <div className="bg-gray-50 p-3 rounded-md">
+                                            <p className="text-xs text-gray-500 uppercase tracking-wide mb-1">Bathrooms</p>
+                                            <p className="font-medium text-gray-900">{selectedOrder.bathrooms || 0}</p>
+                                        </div>
+                                    </div>
+                                </div>
 
-                                        {/* Specifications */}
-                                        {(selectedOrder.materialGrade || selectedOrder.finishType) && (
-                                            <div className="bg-gray-50 rounded-lg p-4">
-                                                <div className="flex items-center gap-2 text-sm font-semibold text-gray-800 mb-4">
-                                                    <Layers className="h-4 w-4 text-gray-500" />
-                                                    Specifications
-                                                </div>
-                                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                                    {selectedOrder.materialGrade && (
-                                                        <div>
-                                                            <p className="text-xs text-gray-500 uppercase tracking-wide mb-1">Material Grade</p>
-                                                            <p className="text-sm font-medium text-gray-900">{selectedOrder.materialGrade}</p>
+                                {/* Detailed Configuration */}
+                                {selectedOrder.configuration && (
+                                    <div className="space-y-4">
+                                        <h3 className="font-semibold text-gray-900 border-b pb-2">Item Breakdown</h3>
+
+                                        {/* Living Area */}
+                                        {selectedOrder.configuration.livingArea && Object.keys(selectedOrder.configuration.livingArea).length > 0 && (
+                                            <div className="bg-gray-50 p-4 rounded-lg">
+                                                <h4 className="font-medium text-sm text-gray-700 mb-3 uppercase tracking-wide">Living Area</h4>
+                                                <div className="grid grid-cols-2 gap-2 text-sm">
+                                                    {Object.entries(selectedOrder.configuration.livingArea).map(([itemId, qty]) => (
+                                                        qty > 0 && <div key={itemId} className="flex justify-between bg-white p-2 rounded border">
+                                                            <span>{itemId.replace('la_', '').replace(/_/g, ' ')}</span>
+                                                            <Badge variant="secondary">Qty: {qty}</Badge>
                                                         </div>
-                                                    )}
-                                                    {selectedOrder.finishType && (
-                                                        <div>
-                                                            <p className="text-xs text-gray-500 uppercase tracking-wide mb-1">Finish Type</p>
-                                                            <p className="text-sm font-medium text-gray-900">{selectedOrder.finishType}</p>
-                                                        </div>
-                                                    )}
+                                                    ))}
                                                 </div>
                                             </div>
                                         )}
 
-                                        {/* Estimate Summary */}
-                                        <div className="bg-gray-50 rounded-lg p-4">
-                                            <div className="flex items-center gap-2 text-sm font-semibold text-gray-800 mb-4">
-                                                <IndianRupee className="h-4 w-4 text-gray-500" />
-                                                Estimate Summary
-                                            </div>
-                                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                                {selectedOrder.estimatedAmount !== undefined && (
-                                                    <div>
-                                                        <p className="text-xs text-gray-500 uppercase tracking-wide mb-1">Estimated Amount</p>
-                                                        <p className="text-2xl font-bold text-gray-900">{formatAmount(selectedOrder.estimatedAmount)}</p>
-                                                    </div>
-                                                )}
-                                                <div>
-                                                    <p className="text-xs text-gray-500 uppercase tracking-wide mb-1">Status</p>
-                                                    <Badge className={cn("capitalize px-3 py-1.5 border-none text-sm", getStatusColor(selectedOrder.status))}>
-                                                        {selectedOrder.status}
-                                                    </Badge>
+                                        {/* Kitchen */}
+                                        {selectedOrder.configuration.kitchen && (
+                                            <div className="bg-gray-50 p-4 rounded-lg">
+                                                <h4 className="font-medium text-sm text-gray-700 mb-3 uppercase tracking-wide">Kitchen</h4>
+                                                <div className="mb-3 flex gap-4 text-sm">
+                                                    <Badge variant="outline" className="bg-white">Layout: {selectedOrder.configuration.kitchen.layout}</Badge>
+                                                    <Badge variant="outline" className="bg-white">Material: {selectedOrder.configuration.kitchen.material}</Badge>
                                                 </div>
-                                                {selectedOrder.createdAt && (
-                                                    <div className="col-span-1 sm:col-span-2">
-                                                        <p className="text-xs text-gray-500 uppercase tracking-wide mb-1">Created At</p>
-                                                        <p className="text-sm text-gray-700">{formatDateTime(selectedOrder.createdAt)}</p>
-                                                    </div>
-                                                )}
+                                                <div className="grid grid-cols-2 gap-2 text-sm">
+                                                    {selectedOrder.configuration.kitchen.items && Object.entries(selectedOrder.configuration.kitchen.items).map(([itemId, qty]) => (
+                                                        qty > 0 && <div key={itemId} className="flex justify-between bg-white p-2 rounded border">
+                                                            <span>{itemId}</span>
+                                                            <Badge variant="secondary">Qty: {qty}</Badge>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+
+                                {/* Financials */}
+                                <div className="bg-blue-50 border border-blue-100 rounded-lg p-5">
+                                    <div className="flex items-center justify-between">
+                                        <div>
+                                            <p className="text-sm text-blue-600 font-medium mb-1">Total Estimated Amount</p>
+                                            <div className="text-3xl font-bold text-blue-900">
+                                                {formatAmount(selectedOrder.totalAmount || selectedOrder.estimatedAmount)}
                                             </div>
                                         </div>
-                                    </>
-                                )}
+                                        <Badge className={cn("text-sm px-3 py-1", getStatusColor(selectedOrder.status || 'pending'))}>
+                                            {selectedOrder.status || 'pending'}
+                                        </Badge>
+                                    </div>
+                                    <div className="mt-4 pt-4 border-t border-blue-200 text-xs text-blue-600">
+                                        Created on {formatDateTime(selectedOrder.createdAt)}
+                                    </div>
+                                </div>
+
                             </div>
 
                             {/* Footer */}
                             <div className="shrink-0 bg-white px-6 py-4 border-t border-gray-200 flex flex-wrap justify-end gap-3">
-                                {isEditing ? (
-                                    <>
-                                        <Button
-                                            variant="outline"
-                                            className="border-gray-300 text-gray-700 hover:bg-gray-50"
-                                            onClick={cancelEditing}
-                                            disabled={isSaving}
-                                        >
-                                            Cancel
-                                        </Button>
-                                        <Button
-                                            className="bg-blue-600 hover:bg-blue-700 text-white"
-                                            onClick={handleSaveChanges}
-                                            disabled={isSaving}
-                                        >
-                                            {isSaving ? "Saving..." : "Save Changes"}
-                                        </Button>
-                                    </>
-                                ) : (
-                                    <>
-                                        {selectedOrder.pdfUrl && (
-                                            <Button
-                                                variant="outline"
-                                                className="border-gray-300 text-gray-700 hover:bg-gray-50"
-                                                onClick={() => window.open(selectedOrder.pdfUrl, '_blank')}
-                                            >
-                                                <FileText className="h-4 w-4 mr-2" />
-                                                Download PDF
-                                            </Button>
-                                        )}
+                                {selectedOrder.pdfUrl && (
+                                    <Button
+                                        variant="outline"
+                                        className="border-gray-300 text-gray-700 hover:bg-gray-50"
+                                        onClick={() => window.open(selectedOrder.pdfUrl, '_blank')}
+                                    >
+                                        <FileText className="h-4 w-4 mr-2" />
+                                        Download PDF
+                                    </Button>
+                                )}
 
-                                        {selectedOrder.status === "pending" && (
-                                            <>
-                                                <Button
-                                                    className="bg-red-500 hover:bg-red-600 text-white"
-                                                    onClick={() => handleReject(selectedOrder.id)}
-                                                >
-                                                    Reject
-                                                </Button>
-                                                <Button
-                                                    className="bg-green-600 hover:bg-green-700 text-white"
-                                                    onClick={() => handleApprove(selectedOrder.id)}
-                                                >
-                                                    Approve
-                                                </Button>
-                                            </>
-                                        )}
+                                {(selectedOrder.status === "pending" || !selectedOrder.status) && (
+                                    <>
+                                        <Button
+                                            className="bg-red-500 hover:bg-red-600 text-white"
+                                            onClick={() => handleReject(selectedOrder.id)}
+                                        >
+                                            Reject
+                                        </Button>
+                                        <Button
+                                            className="bg-green-600 hover:bg-green-700 text-white"
+                                            onClick={() => handleApprove(selectedOrder.id)}
+                                        >
+                                            Approve
+                                        </Button>
                                     </>
                                 )}
                             </div>

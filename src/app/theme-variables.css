@@ -1,0 +1,49 @@
+/* Global CSS Variables for Theme System */
+:root {
+    /* Default theme colors */
+    --primary: #ea580c;
+    --secondary: #1c1917;
+    --accent: #3b82f6;
+
+    /* Default button radius */
+    --button-radius: 8px;
+
+    /* Default font */
+    --font-family: Inter, system-ui, sans-serif;
+}
+
+/* Apply theme font globally */
+body {
+    font-family: var(--font-family);
+}
+
+/* Button styles using CSS variables */
+.btn-primary {
+    background-color: var(--primary);
+    border-radius: var(--button-radius);
+}
+
+.btn-primary:hover {
+    background-color: var(--primary);
+    opacity: 0.9;
+}
+
+.text-primary {
+    color: var(--primary);
+}
+
+.bg-primary {
+    background-color: var(--primary);
+}
+
+.border-primary {
+    border-color: var(--primary);
+}
+
+.text-secondary {
+    color: var(--secondary);
+}
+
+.bg-secondary {
+    background-color: var(--secondary);
+}

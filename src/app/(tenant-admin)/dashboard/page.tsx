@@ -45,6 +45,8 @@ import {
 import { doc, updateDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 
+import { generateSampleData } from "@/lib/sampleData";
+
 export default function TenantDashboardPage() {
     const { tenant, isAuthenticated, loading: authLoading } = useTenantAuth();
     const stats = useTenantDashboard(tenant?.id || null);
@@ -58,6 +60,15 @@ export default function TenantDashboardPage() {
             router.push("/login");
         }
     }, [authLoading, isAuthenticated, router]);
+
+    // Generate sample data if needed
+    useEffect(() => {
+        if (tenant?.id) {
+            import("@/lib/seeder").then((module) => {
+                module.checkAndSeed(tenant.id);
+            });
+        }
+    }, [tenant?.id]);
 
     if (authLoading || stats.loading) {
         return (

@@ -2,29 +2,45 @@
 
 import { useState, useEffect } from "react";
 import { db } from "@/lib/firebase";
-import { collection, query, where, onSnapshot, doc, updateDoc } from "firebase/firestore";
+import { collection, query, where, onSnapshot, doc, updateDoc, orderBy } from "firebase/firestore";
 
 export interface Order {
     id: string;
-    estimateId: string;
+    // New Structure Fields
+    customerInfo?: {
+        name: string;
+        phone: string;
+        email: string;
+        city: string;
+    };
+    segment?: 'Residential' | 'Commercial';
+    plan?: 'Basic' | 'Standard' | 'Luxe';
+    carpetArea?: number;
+    bedrooms?: number; // counts
+    bathrooms?: number; // counts
+    configuration?: {
+        livingArea?: { [itemId: string]: number };
+        kitchen?: {
+            layout: string;
+            material: string;
+            items: { [itemId: string]: number };
+        };
+        bedrooms?: Array<{ items: { [itemId: string]: number } }>;
+        bathrooms?: Array<{ items: { [itemId: string]: number } }>;
+    };
+    totalAmount?: number;
+
+    // Legacy/Shared Fields
+    status?: "pending" | "approved" | "rejected" | "generated"; // We might need to add status to the new estimate creation
+    createdAt?: any;
+    tenantId: string;
+    pdfUrl?: string;
+
+    // Legacy Fields (kept for compatibility if needed, though we are switching source)
     clientName?: string;
     clientPhone?: string;
     clientEmail?: string;
-    carpetArea?: number;
-    numberOfRooms?: number;
-    rooms?: string[];
-    selectedRooms?: string[];
-    materialGrade?: string;
-    finishType?: string;
     estimatedAmount?: number;
-    status: "pending" | "approved" | "rejected" | "generated";
-    createdAt?: any;
-    companyId?: string;
-    tenantId: string;
-    storeId?: string;
-    createdByUserId?: string;
-    createdByRole?: string;
-    pdfUrl?: string;
 }
 
 export function useOrders(tenantId: string | null, storeId?: string | null) {
@@ -43,22 +59,28 @@ export function useOrders(tenantId: string | null, storeId?: string | null) {
             return;
         }
 
-        const ordersRef = collection(db, "orders");
-        const q = query(ordersRef, where("tenantId", "==", tenantId));
+        // Fetch from the new estimates subcollection
+        const estimatesRef = collection(db, `tenants/${tenantId}/estimates`);
+        // We might want to order by createdAt desc
+        const q = query(estimatesRef, orderBy("createdAt", "desc"));
 
         const unsubscribe = onSnapshot(
             q,
             (snapshot) => {
-                const ordersData = snapshot.docs.map(doc => ({
-                    id: doc.id,
-                    ...doc.data()
-                })) as Order[];
-
-                // Sort by createdAt manually
-                ordersData.sort((a, b) => {
-                    if (!a.createdAt || !b.createdAt) return 0;
-                    return b.createdAt.toMillis() - a.createdAt.toMillis();
-                });
+                const ordersData = snapshot.docs.map(doc => {
+                    const data = doc.data();
+                    return {
+                        id: doc.id,
+                        ...data,
+                        // Map new fields to legacy fields for backward compatibility in UI where consistent
+                        clientName: data.customerInfo?.name,
+                        clientPhone: data.customerInfo?.phone,
+                        clientEmail: data.customerInfo?.email,
+                        estimatedAmount: data.totalAmount,
+                        // Default status if not present (estimates might not have status initially, default to pending)
+                        status: data.status || 'pending'
+                    };
+                }) as Order[];
 
                 setOrders(ordersData);
 
@@ -66,7 +88,7 @@ export function useOrders(tenantId: string | null, storeId?: string | null) {
                 const pendingCount = ordersData.filter(o => o.status === "pending").length;
                 const approvedCount = ordersData.filter(o => o.status === "approved").length;
                 const rejectedCount = ordersData.filter(o => o.status === "rejected").length;
-                const totalValue = ordersData.reduce((sum, o) => sum + (o.estimatedAmount || 0), 0);
+                const totalValue = ordersData.reduce((sum, o) => sum + (o.totalAmount || 0), 0);
 
                 setStats({
                     pending: pendingCount,
@@ -87,8 +109,9 @@ export function useOrders(tenantId: string | null, storeId?: string | null) {
     }, [tenantId, storeId]);
 
     const updateOrderStatus = async (orderId: string, status: "pending" | "approved" | "rejected") => {
+        if (!tenantId) return false;
         try {
-            const orderRef = doc(db, "orders", orderId);
+            const orderRef = doc(db, `tenants/${tenantId}/estimates`, orderId);
             await updateDoc(orderRef, { status });
             return true;
         } catch (error) {
@@ -98,8 +121,10 @@ export function useOrders(tenantId: string | null, storeId?: string | null) {
     };
 
     const updateOrderDetails = async (orderId: string, updates: Partial<Order>) => {
+        if (!tenantId) return false;
         try {
-            const orderRef = doc(db, "orders", orderId);
+            const orderRef = doc(db, `tenants/${tenantId}/estimates`, orderId);
+            // We need to be careful with nested updates. For now assuming shallow updates or properly structured
             await updateDoc(orderRef, updates);
             return true;
         } catch (error) {

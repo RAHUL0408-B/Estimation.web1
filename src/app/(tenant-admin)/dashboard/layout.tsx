@@ -16,13 +16,13 @@ import {
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useTenantAuth } from "@/hooks/useTenantAuth";
-import { GenerateEstimateDialog } from "@/components/dashboard/GenerateEstimateDialog";
+import { useBrand } from "@/hooks/useWebsiteBuilder";
+
 
 const SIDEBAR_ITEMS = [
     { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
     { label: "Orders", href: "/dashboard/orders", icon: ShoppingBag },
     { label: "Consultation Requests", href: "/dashboard/consultation-requests", icon: MessageSquare },
-    { label: "Portfolio", href: "/dashboard/portfolio", icon: ImageIcon },
     { label: "Pricing & Configuration", href: "/dashboard/pricing", icon: Sliders },
     { label: "Website Setup", href: "/dashboard/website-setup", icon: Globe },
     { label: "Settings", href: "/dashboard/settings", icon: Settings },
@@ -32,6 +32,7 @@ export default function TenantLayout({ children }: { children: React.ReactNode }
     const pathname = usePathname();
     const router = useRouter();
     const { tenant, logout } = useTenantAuth();
+    const { brand } = useBrand(tenant?.id || "");
 
     const handleLogout = async () => {
         await logout();
@@ -43,11 +44,21 @@ export default function TenantLayout({ children }: { children: React.ReactNode }
             {/* Sidebar */}
             <aside className="fixed left-0 top-0 h-full w-64 border-r bg-white flex flex-col">
                 <div className="p-6">
-                    <div className="flex items-center space-x-2 mb-8">
-                        <div className="h-8 w-8 bg-black rounded flex items-center justify-center">
-                            <span className="text-white font-bold text-xl">E</span>
-                        </div>
-                        <span className="text-xl font-bold tracking-tight">EstiMate</span>
+                    <div className="flex items-center gap-3">
+                        {brand?.logoUrl ? (
+                            <img
+                                src={brand.logoUrl}
+                                alt={brand.brandName || "Logo"}
+                                className="h-8 w-auto"
+                            />
+                        ) : (
+                            <div className="h-8 w-8 rounded bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center">
+                                <span className="text-white font-bold text-sm">
+                                    {brand?.brandName?.charAt(0) || "A"}
+                                </span>
+                            </div>
+                        )}
+                        <span className="text-xl font-bold tracking-tight">{brand?.brandName || "Admin"}</span>
                     </div>
 
                     {/* Workspace Selector */}
@@ -58,13 +69,17 @@ export default function TenantLayout({ children }: { children: React.ReactNode }
                         </div>
                     </div>
 
-                    <GenerateEstimateDialog
-                        trigger={
-                            <Button className="w-full mb-6 bg-[#0F172A] hover:bg-[#1E293B] text-white py-6" size="lg">
-                                <Plus className="mr-2 h-4 w-4" /> Add New Estimate
-                            </Button>
-                        }
-                    />
+                    <Button
+                        className="w-full mb-6 bg-[#0F172A] hover:bg-[#1E293B] text-white py-6"
+                        size="lg"
+                        onClick={() => {
+                            if (tenant?.id) {
+                                window.open(`/${tenant.id}/estimate`, '_blank');
+                            }
+                        }}
+                    >
+                        <Plus className="mr-2 h-4 w-4" /> Add New Estimate
+                    </Button>
 
                     <nav className="space-y-1">
                         {SIDEBAR_ITEMS.map((item) => {

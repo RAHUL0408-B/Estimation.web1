@@ -1,225 +1,253 @@
 "use client";
 
-import { use, useState, useEffect } from "react";
-import { Loader2, Image as ImageIcon, X, ChevronLeft, ChevronRight, MapPin, Calendar } from "lucide-react";
-import { usePublicWebsiteConfig } from "@/hooks/useWebsiteConfig";
-import { Card, CardContent } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
+import { useEffect, useState, use } from "react";
+import { Loader2 } from "lucide-react";
 import { db } from "@/lib/firebase";
-import { collection, onSnapshot, query, where } from "firebase/firestore";
-
-interface PortfolioProject {
-    id: string;
-    title: string;
-    description?: string;
-    images: string[];
-    category?: string;
-    location?: string;
-    completionDate?: string;
-    status?: string;
-}
+import { collection, query, orderBy, getDocs, doc, getDoc } from "firebase/firestore";
+import { getTenantByStoreId } from "@/lib/firestoreHelpers";
+import type { PortfolioProject, ThemeConfig } from "@/types/website";
 
 export default function PortfolioPage({ params }: { params: Promise<{ tenantId: string }> }) {
-    const { tenantId } = use(params);
-    const { config, tenantId: resolvedTenantId, loading: configLoading } = usePublicWebsiteConfig(tenantId);
-    const [portfolio, setPortfolio] = useState<PortfolioProject[]>([]);
+    const { tenantId: storeSlug } = use(params);
+
     const [loading, setLoading] = useState(true);
+    const [projects, setProjects] = useState<PortfolioProject[]>([]);
+    const [theme, setTheme] = useState<ThemeConfig | null>(null);
+    const [selectedCategory, setSelectedCategory] = useState<"all" | "residential" | "commercial">("all");
+    const [selectedProject, setSelectedProject] = useState<PortfolioProject | null>(null);
 
-    // Fetch portfolio items from top-level portfolio collection
     useEffect(() => {
-        if (!resolvedTenantId) {
-            setLoading(false);
-            return;
-        }
+        let isMounted = true;
+        const loadData = async () => {
+            if (!storeSlug) {
+                if (isMounted) setLoading(false);
+                return;
+            }
 
-        // Query the top-level portfolio collection with tenantId filter
-        const portfolioRef = collection(db, "portfolio");
-        const q = query(
-            portfolioRef,
-            where("tenantId", "==", resolvedTenantId),
-            where("status", "==", "active")
-        );
+            try {
+                const tenant = await getTenantByStoreId(storeSlug);
+                if (!tenant) {
+                    if (isMounted) setLoading(false);
+                    return;
+                }
 
-        const unsubscribe = onSnapshot(q, (snapshot) => {
-            const items = snapshot.docs.map(doc => ({
-                id: doc.id,
-                ...doc.data()
-            })) as PortfolioProject[];
+                if (isMounted) {
+                    // Load theme
+                    const themeDoc = await getDoc(doc(db, "tenants", tenant.id, "theme", "config"));
+                    if (themeDoc.exists()) {
+                        setTheme(themeDoc.data() as ThemeConfig);
+                    }
 
-            // Sort by createdAt manually (to avoid composite index requirement)
-            items.sort((a: any, b: any) => {
-                if (!a.createdAt || !b.createdAt) return 0;
-                return b.createdAt?.toMillis?.() - a.createdAt?.toMillis?.() || 0;
-            });
+                    // Load portfolio projects
+                    const projectsRef = collection(db, "tenants", tenant.id, "pages", "portfolio", "projects");
+                    const q = query(projectsRef, orderBy("order", "asc"));
+                    const snapshot = await getDocs(q);
+                    const projectsData = snapshot.docs.map((doc) => ({
+                        id: doc.id,
+                        ...doc.data(),
+                    })) as PortfolioProject[];
+                    setProjects(projectsData);
+                }
+            } catch (error) {
+                console.error("Error loading portfolio:", error);
+            } finally {
+                if (isMounted) setLoading(false);
+            }
+        };
 
-            setPortfolio(items);
-            setLoading(false);
-        }, (error) => {
-            console.error("Error fetching portfolio:", error);
-            setLoading(false);
-        });
+        loadData();
+        return () => { isMounted = false; };
+    }, [storeSlug]);
 
-        return () => unsubscribe();
-    }, [resolvedTenantId]);
-
-    const isLoading = configLoading || loading;
-    const [lightboxOpen, setLightboxOpen] = useState(false);
-    const [lightboxImages, setLightboxImages] = useState<string[]>([]);
-    const [lightboxIndex, setLightboxIndex] = useState(0);
-
-    const secondaryColor = config?.secondaryColor || "#1c1917";
-    const primaryColor = config?.primaryColor || "#ea580c";
-
-    const openLightbox = (images: string[], startIndex: number = 0) => {
-        setLightboxImages(images);
-        setLightboxIndex(startIndex);
-        setLightboxOpen(true);
-    };
-
-    const closeLightbox = () => {
-        setLightboxOpen(false);
-        setLightboxImages([]);
-    };
-
-    const nextImage = () => {
-        setLightboxIndex((prev) => (prev + 1) % lightboxImages.length);
-    };
-
-    const prevImage = () => {
-        setLightboxIndex((prev) => (prev - 1 + lightboxImages.length) % lightboxImages.length);
-    };
-
-    if (isLoading) {
+    if (loading) {
         return (
-            <div className="flex items-center justify-center min-h-[500px]">
+            <div className="flex items-center justify-center min-h-[60vh]">
                 <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
             </div>
         );
     }
 
+    const primaryColor = theme?.primaryColor || "#ea580c";
+    const secondaryColor = theme?.secondaryColor || "#1c1917";
+
+    const filteredProjects = selectedCategory === "all"
+        ? projects
+        : projects.filter((p) => p.category === selectedCategory);
+
     return (
-        <div className="min-h-screen">
+        <div className="flex flex-col">
             {/* Header */}
-            <div className="py-16 text-center" style={{ backgroundColor: secondaryColor }}>
+            <section className="py-16 text-center" style={{ backgroundColor: secondaryColor }}>
                 <div className="container mx-auto px-4">
-                    <span className="text-sm font-bold uppercase tracking-wider text-gray-400">Our Latest Work</span>
-                    <h1 className="font-serif text-4xl md:text-5xl font-bold text-white mt-4">
-                        Portfolio
-                    </h1>
-                    <p className="text-gray-300 max-w-2xl mx-auto mt-4">
-                        Explore our collection of handpicked projects, showcasing our dedication to quality and design excellence.
+                    <h1 className="text-5xl font-bold text-white mb-4">Our Portfolio</h1>
+                    <p className="text-gray-300 text-lg max-w-2xl mx-auto">
+                        Explore our collection of stunning interior design projects
                     </p>
                 </div>
-            </div>
+            </section>
 
-            {/* Portfolio Grid */}
-            <div className="container mx-auto py-16 px-4">
-                {portfolio.length === 0 ? (
-                    <div className="text-center py-20 bg-gray-50 rounded-2xl">
-                        <ImageIcon className="h-16 w-16 mx-auto text-gray-300 mb-4" />
-                        <p className="text-gray-500">Portfolio items coming soon.</p>
+            {/* Filter */}
+            <section className="container mx-auto px-4 py-8">
+                <div className="flex justify-center gap-4">
+                    <button
+                        onClick={() => setSelectedCategory("all")}
+                        className={`px-6 py-2 rounded-full font-medium transition-all ${selectedCategory === "all"
+                            ? "text-white shadow-lg"
+                            : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                            }`}
+                        style={selectedCategory === "all" ? { backgroundColor: primaryColor } : {}}
+                    >
+                        All Projects
+                    </button>
+                    <button
+                        onClick={() => setSelectedCategory("residential")}
+                        className={`px-6 py-2 rounded-full font-medium transition-all ${selectedCategory === "residential"
+                            ? "text-white shadow-lg"
+                            : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                            }`}
+                        style={selectedCategory === "residential" ? { backgroundColor: primaryColor } : {}}
+                    >
+                        Residential
+                    </button>
+                    <button
+                        onClick={() => setSelectedCategory("commercial")}
+                        className={`px-6 py-2 rounded-full font-medium transition-all ${selectedCategory === "commercial"
+                            ? "text-white shadow-lg"
+                            : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                            }`}
+                        style={selectedCategory === "commercial" ? { backgroundColor: primaryColor } : {}}
+                    >
+                        Commercial
+                    </button>
+                </div>
+            </section>
+
+            {/* Projects Grid */}
+            <section className="container mx-auto px-4 pb-24">
+                {filteredProjects.length === 0 ? (
+                    <div className="text-center py-16 text-gray-500">
+                        <p className="text-lg">No projects found in this category.</p>
                     </div>
                 ) : (
-                    <div className="grid gap-8 md:grid-cols-2 lg:grid-cols-3">
-                        {portfolio.map((project) => (
-                            <Card
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                        {filteredProjects.map((project) => (
+                            <div
                                 key={project.id}
-                                className="group overflow-hidden border-none shadow-md hover:shadow-xl transition-all duration-300 cursor-pointer"
-                                onClick={() => project.images && project.images.length > 0 && openLightbox(project.images)}
+                                className="group cursor-pointer"
+                                onClick={() => setSelectedProject(project)}
                             >
-                                <div className="relative aspect-[4/3] bg-gray-100 overflow-hidden">
-                                    {project.images?.[0] ? (
-                                        <img
-                                            src={project.images[0]}
-                                            alt={project.title}
-                                            className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
-                                        />
-                                    ) : (
-                                        <div className="flex items-center justify-center h-full text-gray-400">
-                                            <ImageIcon className="h-12 w-12 opacity-20" />
+                                <div className="relative overflow-hidden rounded-2xl shadow-lg hover:shadow-2xl transition-all duration-300">
+                                    {/* Before/After Images */}
+                                    <div className="grid grid-cols-2 gap-1">
+                                        {project.beforeImageUrl && (
+                                            <div className="relative h-64 overflow-hidden">
+                                                <img
+                                                    src={project.beforeImageUrl}
+                                                    alt="Before"
+                                                    className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
+                                                />
+                                                <div className="absolute top-2 left-2 bg-black/70 text-white text-xs px-2 py-1 rounded">
+                                                    Before
+                                                </div>
+                                            </div>
+                                        )}
+                                        {project.afterImageUrl && (
+                                            <div className="relative h-64 overflow-hidden">
+                                                <img
+                                                    src={project.afterImageUrl}
+                                                    alt="After"
+                                                    className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
+                                                />
+                                                <div className="absolute top-2 right-2 bg-black/70 text-white text-xs px-2 py-1 rounded">
+                                                    After
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    {/* Overlay */}
+                                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-end p-6">
+                                        <div className="text-white">
+                                            <h3 className="text-xl font-bold mb-1">{project.title}</h3>
+                                            <p className="text-sm text-gray-300">{project.location}</p>
                                         </div>
-                                    )}
-                                    {project.category && (
-                                        <div className="absolute bottom-4 left-4">
-                                            <Badge className="bg-white/90 backdrop-blur text-gray-700 border-none uppercase text-[10px] font-bold px-3 py-1">
-                                                {project.category}
-                                            </Badge>
-                                        </div>
-                                    )}
-                                    {project.images && project.images.length > 1 && (
-                                        <div className="absolute bottom-4 right-4 bg-black/70 text-white text-xs px-2 py-1 rounded">
-                                            +{project.images.length - 1} photos
-                                        </div>
-                                    )}
+                                    </div>
                                 </div>
-                                <CardContent className="p-6">
-                                    <h3 className="font-bold text-xl group-hover:opacity-80 transition-opacity">
-                                        {project.title}
-                                    </h3>
-                                    {(project.location || project.completionDate) && (
-                                        <div className="flex items-center text-xs text-gray-400 mt-2 space-x-3">
-                                            {project.location && (
-                                                <div className="flex items-center">
-                                                    <MapPin className="mr-1 h-3 w-3" /> {project.location}
-                                                </div>
-                                            )}
-                                            {project.completionDate && (
-                                                <div className="flex items-center">
-                                                    <Calendar className="mr-1 h-3 w-3" /> {project.completionDate}
-                                                </div>
-                                            )}
-                                        </div>
-                                    )}
-                                    {project.description && (
-                                        <p className="text-sm text-gray-500 line-clamp-2 mt-3">
-                                            {project.description}
-                                        </p>
-                                    )}
-                                </CardContent>
-                            </Card>
+
+                                {/* Info */}
+                                <div className="mt-4">
+                                    <h3 className="font-semibold text-lg mb-1">{project.title}</h3>
+                                    <p className="text-sm text-gray-500 mb-2">
+                                        {project.category === "residential" ? "Residential" : "Commercial"} • {project.location}
+                                    </p>
+                                    <p className="text-sm text-gray-600 line-clamp-2">{project.description}</p>
+                                </div>
+                            </div>
                         ))}
                     </div>
                 )}
-            </div>
+            </section>
 
-            {/* Lightbox */}
-            {lightboxOpen && (
-                <div className="fixed inset-0 z-50 bg-black/95 flex items-center justify-center">
-                    <button
-                        onClick={closeLightbox}
-                        className="absolute top-4 right-4 text-white hover:text-gray-300 z-10"
+            {/* Project Modal */}
+            {selectedProject && (
+                <div
+                    className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4"
+                    onClick={() => setSelectedProject(null)}
+                >
+                    <div
+                        className={`bg-white rounded-2xl w-full max-h-[90vh] overflow-y-auto ${(!selectedProject.imageStyle || selectedProject.imageStyle === 'single')
+                            ? 'max-w-4xl' : 'max-w-6xl'}`}
+                        onClick={(e) => e.stopPropagation()}
                     >
-                        <X className="h-8 w-8" />
-                    </button>
-
-                    {lightboxImages.length > 1 && (
-                        <>
-                            <button
-                                onClick={prevImage}
-                                className="absolute left-4 text-white hover:text-gray-300 z-10"
-                            >
-                                <ChevronLeft className="h-10 w-10" />
-                            </button>
-                            <button
-                                onClick={nextImage}
-                                className="absolute right-4 text-white hover:text-gray-300 z-10"
-                            >
-                                <ChevronRight className="h-10 w-10" />
-                            </button>
-                        </>
-                    )}
-
-                    <div className="max-w-5xl max-h-[90vh] px-4">
-                        <img
-                            src={lightboxImages[lightboxIndex]}
-                            alt=""
-                            className="max-w-full max-h-[85vh] object-contain mx-auto"
-                        />
-                        {lightboxImages.length > 1 && (
-                            <p className="text-center text-white/70 mt-4 text-sm">
-                                {lightboxIndex + 1} / {lightboxImages.length}
-                            </p>
+                        {(!selectedProject.imageStyle || selectedProject.imageStyle === 'single') ? (
+                            <div className="w-full h-[60vh] bg-gray-50 flex items-center justify-center p-4">
+                                <img
+                                    src={selectedProject.afterImageUrl || selectedProject.beforeImageUrl}
+                                    alt={selectedProject.title}
+                                    className="max-h-full max-w-full object-contain rounded-lg shadow-sm"
+                                />
+                            </div>
+                        ) : (
+                            <div className="grid md:grid-cols-2 gap-1">
+                                {selectedProject.beforeImageUrl && (
+                                    <div className="relative h-96">
+                                        <img
+                                            src={selectedProject.beforeImageUrl}
+                                            alt="Before"
+                                            className="w-full h-full object-cover"
+                                        />
+                                        <div className="absolute top-4 left-4 bg-black/70 text-white px-3 py-1 rounded">
+                                            Before
+                                        </div>
+                                    </div>
+                                )}
+                                {selectedProject.afterImageUrl && (
+                                    <div className="relative h-96">
+                                        <img
+                                            src={selectedProject.afterImageUrl}
+                                            alt="After"
+                                            className="w-full h-full object-cover"
+                                        />
+                                        <div className="absolute top-4 right-4 bg-black/70 text-white px-3 py-1 rounded">
+                                            After
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
                         )}
+                        <div className="p-8">
+                            <h2 className="text-3xl font-bold mb-2">{selectedProject.title}</h2>
+                            <p className="text-gray-500 mb-4">
+                                {selectedProject.category === "residential" ? "Residential" : "Commercial"} • {selectedProject.location}
+                            </p>
+                            <p className="text-gray-700 leading-relaxed">{selectedProject.description}</p>
+                            <button
+                                onClick={() => setSelectedProject(null)}
+                                className="mt-6 px-6 py-2 rounded-lg bg-gray-100 hover:bg-gray-200 transition-colors"
+                            >
+                                Close
+                            </button>
+                        </div>
                     </div>
                 </div>
             )}

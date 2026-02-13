@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { Menu, Phone, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { use, useState } from "react";
+import { useState, useEffect, use } from "react";
 import { usePublicWebsiteConfig } from "@/hooks/useWebsiteConfig";
 
 export default function StorefrontLayout({
@@ -14,6 +14,7 @@ export default function StorefrontLayout({
     params: Promise<{ tenantId: string }>;
 }) {
     const { tenantId } = use(params);
+
     const { config, loading } = usePublicWebsiteConfig(tenantId);
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
@@ -24,35 +25,99 @@ export default function StorefrontLayout({
     const secondaryColor = config?.secondaryColor || "#1c1917";
     const footerText = config?.footerText || "Transforming spaces into dreams.";
 
+    const [scrolled, setScrolled] = useState(false);
+
+    useEffect(() => {
+        const handleScroll = () => {
+            setScrolled(window.scrollY > 20);
+        };
+        window.addEventListener("scroll", handleScroll);
+        return () => window.removeEventListener("scroll", handleScroll);
+    }, []);
+
+    // Dynamically inject favicon
+    // Inject CSS variables for theme
+    useEffect(() => {
+        if (config?.faviconUrl) {
+            // Remove existing favicon links
+            const existingFavicons = document.querySelectorAll("link[rel*='icon']");
+            existingFavicons.forEach(link => link.remove());
+
+            // Add new favicon
+            const link = document.createElement('link');
+            link.rel = 'icon';
+            link.href = config.faviconUrl;
+            document.head.appendChild(link);
+        }
+
+        // Inject theme CSS variables
+        if (config) {
+            document.documentElement.style.setProperty('--primary', config.primaryColor || primaryColor);
+            document.documentElement.style.setProperty('--secondary', config.secondaryColor || secondaryColor);
+            document.documentElement.style.setProperty('--accent', config.accentColor || '#6366f1'); // Default accent
+            document.documentElement.style.setProperty('--button-radius', `${config.buttonRadius || 8}px`); // Default button radius
+
+            // Set font family based on fontStyle
+            let fontFamily = 'Inter, system-ui, sans-serif'; // default modern
+            if (config.fontStyle === 'elegant') {
+                fontFamily = 'Playfair Display, Georgia, serif';
+            } else if (config.fontStyle === 'minimal') {
+                fontFamily = 'Helvetica Neue, Arial, sans-serif';
+            }
+            document.documentElement.style.setProperty('--font-family', fontFamily);
+        }
+    }, [config?.faviconUrl, config]);
+
     return (
         <div className="flex min-h-screen flex-col font-sans">
-            <header className="sticky top-0 z-50 w-full border-b bg-white/95 backdrop-blur-md">
-                <div className="container mx-auto flex h-16 items-center justify-between px-4 sm:px-8">
-                    <Link href={`/${tenantId}`} className="flex items-center gap-3">
-                        {config?.logoUrl && (
-                            <img src={config.logoUrl} alt={brandName} className="h-10 w-10 rounded-full object-cover" />
+            <header
+                className={`fixed top-0 z-50 w-full transition-all duration-300 ease-in-out bg-white shadow-md backdrop-blur-md border-b border-gray-100 ${scrolled ? "h-[60px]" : "h-[72px]"
+                    }`}
+            >
+                <div className="container mx-auto flex items-center justify-between px-6 md:px-12 h-full">
+                    <Link href={`/${tenantId}`} className="flex items-center gap-3 group">
+                        {config?.logoUrl ? (
+                            <img
+                                src={config.logoUrl}
+                                alt={brandName}
+                                className="h-10 w-10 rounded-xl object-cover shadow-sm group-hover:scale-105 transition-transform duration-300"
+                            />
+                        ) : (
+                            <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white font-bold text-lg shadow-sm">
+                                {brandName.charAt(0)}
+                            </div>
                         )}
-                        <span className="text-xl font-bold tracking-tight" style={{ color: primaryColor }}>
+                        <span className="text-xl font-bold tracking-tight text-gray-900 transition-colors duration-300">
                             {brandName}
                         </span>
                     </Link>
 
                     {/* Desktop Navigation */}
-                    <nav className="hidden items-center gap-8 md:flex">
-                        <Link href={`/${tenantId}`} className="text-sm font-medium text-gray-700 hover:text-gray-900">
-                            Home
-                        </Link>
-                        <Link href={`/${tenantId}/login?redirect=/${tenantId}/estimate`} className="text-sm font-medium text-gray-700 hover:text-gray-900">
-                            Get Estimate
-                        </Link>
-                        <Link href={`/${tenantId}/portfolio`} className="text-sm font-medium text-gray-700 hover:text-gray-900">
-                            Portfolio
-                        </Link>
+                    <nav className="hidden md:flex items-center gap-8">
+                        {[
+                            { name: "Home", href: `/${tenantId}` },
+                            { name: "Portfolio", href: `/${tenantId}/portfolio` },
+                            { name: "Testimonials", href: `/${tenantId}/testimonials` },
+                            { name: "About", href: `/${tenantId}/about` },
+                            { name: "Contact", href: `/${tenantId}/contact` },
+                            { name: "Get Estimate", href: `/${tenantId}/estimate` },
+                        ].map((link) => (
+                            <Link
+                                key={link.name}
+                                href={link.href}
+                                className="text-sm font-medium text-gray-600 hover:text-indigo-600 transition-all duration-300 hover:-translate-y-0.5"
+                            >
+                                {link.name}
+                            </Link>
+                        ))}
                     </nav>
 
                     <div className="flex items-center gap-4">
                         {phone && (
-                            <a href={`tel:${phone}`} className="hidden sm:flex items-center gap-2 text-sm text-gray-600">
+                            <a
+                                href={`tel:${phone}`}
+                                className="hidden sm:flex items-center gap-2 text-sm text-gray-600 hover:text-indigo-600 transition-colors"
+                            >
                                 <Phone className="h-4 w-4" />
                                 {phone}
                             </a>
@@ -60,73 +125,142 @@ export default function StorefrontLayout({
                         <Button
                             variant="ghost"
                             size="icon"
-                            className="md:hidden"
+                            className="md:hidden text-gray-700 hover:bg-gray-100"
                             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
                         >
                             {mobileMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
                         </Button>
                         <Link href={`/${tenantId}/book-consultation`}>
-                            <Button className="hidden md:flex text-white" style={{ backgroundColor: primaryColor }}>
+                            <Button
+                                className="hidden md:flex text-white rounded-lg px-6 transition-all duration-300 hover:scale-105 hover:shadow-lg"
+                                style={{ backgroundColor: primaryColor }}
+                            >
                                 Book Consultation
                             </Button>
                         </Link>
                     </div>
                 </div>
 
-                {/* Mobile Navigation */}
-                {mobileMenuOpen && (
-                    <div className="md:hidden border-t bg-white">
-                        <nav className="container mx-auto px-4 py-4 flex flex-col gap-2">
-                            <Link href={`/${tenantId}`} className="py-2 text-sm font-medium text-gray-700" onClick={() => setMobileMenuOpen(false)}>
-                                Home
+                {/* Mobile Navigation Menu */}
+                <div
+                    className={`md:hidden absolute top-full left-0 w-full bg-white border-b shadow-lg transition-all duration-300 ease-in-out overflow-hidden ${mobileMenuOpen ? "max-h-[500px] opacity-100" : "max-h-0 opacity-0"
+                        }`}
+                >
+                    <nav className="flex flex-col p-6 gap-4">
+                        {[
+                            { name: "Home", href: `/${tenantId}` },
+                            { name: "Portfolio", href: `/${tenantId}/portfolio` },
+                            { name: "Testimonials", href: `/${tenantId}/testimonials` },
+                            { name: "About", href: `/${tenantId}/about` },
+                            { name: "Contact", href: `/${tenantId}/contact` },
+                        ].map((link) => (
+                            <Link
+                                key={link.name}
+                                href={link.href}
+                                className="text-lg font-medium text-gray-800 hover:text-indigo-600 transition-colors border-b border-gray-100 pb-2"
+                                onClick={() => setMobileMenuOpen(false)}
+                            >
+                                {link.name}
                             </Link>
-                            <Link href={`/${tenantId}/login?redirect=/${tenantId}/estimate`} className="py-2 text-sm font-medium text-gray-700" onClick={() => setMobileMenuOpen(false)}>
-                                Get Estimate
-                            </Link>
-                            <Link href={`/${tenantId}/portfolio`} className="py-2 text-sm font-medium text-gray-700" onClick={() => setMobileMenuOpen(false)}>
-                                Portfolio
+                        ))}
+                        <div className="flex flex-col gap-3 mt-4">
+                            <Link href={`/${tenantId}/estimate`} onClick={() => setMobileMenuOpen(false)}>
+                                <Button className="w-full rounded-full bg-gray-900 text-white h-12 text-lg">
+                                    Get Estimate
+                                </Button>
                             </Link>
                             <Link href={`/${tenantId}/book-consultation`} onClick={() => setMobileMenuOpen(false)}>
-                                <Button className="w-full mt-2 text-white" style={{ backgroundColor: primaryColor }}>
+                                <Button variant="outline" className="w-full rounded-full border-gray-300 h-12 text-lg">
                                     Book Consultation
                                 </Button>
                             </Link>
-                        </nav>
-                    </div>
-                )}
+                        </div>
+                    </nav>
+                </div>
             </header>
 
-            <main className="flex-1">{children}</main>
+            <main className="flex-1 pt-[80px]">{children}</main>
 
-            <footer className="border-t py-12" style={{ backgroundColor: secondaryColor, color: "white" }}>
-                <div className="container mx-auto grid grid-cols-1 gap-8 px-4 sm:grid-cols-3 md:px-8">
-                    <div>
-                        <div className="flex items-center gap-3 mb-4">
-                            {config?.logoUrl && (
-                                <img src={config.logoUrl} alt={brandName} className="h-10 w-10 rounded-full object-cover" />
+            <footer className="bg-gray-900 text-white pt-16 pb-8 border-t border-gray-800">
+                <div className="container mx-auto px-6 md:px-12 grid grid-cols-1 md:grid-cols-4 gap-12">
+                    <div className="md:col-span-1 space-y-6">
+                        <div className="flex items-center gap-3">
+                            {config?.logoUrl ? (
+                                <img src={config.logoUrl} alt={brandName} className="h-10 w-10 rounded-xl object-cover bg-white/10" />
+                            ) : (
+                                <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white font-bold text-lg shadow-sm">
+                                    {brandName.charAt(0)}
+                                </div>
                             )}
-                            <h3 className="text-lg font-bold">{brandName}</h3>
+                            <h3 className="text-xl font-bold tracking-tight">{brandName}</h3>
                         </div>
-                        <p className="text-sm text-gray-300">{footerText}</p>
+                        <p className="text-gray-400 text-sm leading-relaxed max-w-xs">{footerText}</p>
+
+                        <div className="flex gap-4">
+                            {/* Social placeholders */}
+                            <div className="h-10 w-10 rounded-full bg-white/5 flex items-center justify-center hover:bg-indigo-600 transition-colors cursor-pointer">
+                                <span className="sr-only">Instagram</span>
+                                <svg className="h-5 w-5 text-gray-300" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path fillRule="evenodd" d="M12.315 2c2.43 0 2.784.013 3.808.06 1.064.049 1.791.218 2.427.465a4.902 4.902 0 011.772 1.153 4.902 4.902 0 011.153 1.772c.247.636.416 1.363.465 2.427.048 1.067.06 1.407.06 4.123v.08c0 2.643-.012 2.987-.06 4.043-.049 1.064-.218 1.791-.465 2.427a4.902 4.902 0 01-1.153 1.772 4.902 4.902 0 01-1.772 1.153c-.636.247-1.363.416-2.427.465-1.067.048-1.407.06-4.123.06h-.08c-2.643 0-2.987-.012-4.043-.06-1.064-.049-1.791-.218-2.427-.465a4.902 4.902 0 01-1.772-1.153 4.902 4.902 0 01-1.153-1.772c-.247-.636-.416-1.363-.465-2.427-.047-1.024-.06-1.379-.06-3.808v-.63c0-2.43.013-2.784.06-3.808.049-1.064.218-1.791.465-2.427a4.902 4.902 0 011.153-1.772 4.902 4.902 0 011.772-1.153c.636-.247 1.363-.416 2.427-.465 1.067-.047 1.407-.06 3.808-.06h.63zm1.538 1.554c-2.633 0-2.915.01-3.951.058-.921.042-1.42.196-1.756.327-.442.172-.76.376-1.093.709-.333.333-.537.651-.709 1.093-.131.336-.285.835-.327 1.756-.047 1.036-.058 1.318-.058 3.951v.922c0 2.633.01 2.915.058 3.951.042.921.196 1.42.327 1.756.172.442.376.76.709 1.093.333.333.651.537 1.093.709.336.131.835.285 1.756.327 1.036.047 1.318.058 3.951.058h.922c2.633 0 2.915-.01 3.951-.058.921-.042 1.42-.196 1.756-.327.442-.172.76-.376 1.093-.709.333-.333.537-.651.709-1.093.131-.336.285-.835.327-1.756.047-1.036.058-1.318.058-3.951v-.922c0-2.633-.01-2.915-.058-3.951-.042-.921-.196-1.42-.327-1.756-.172-.442-.376-.76-.709-1.093-.333-.333-.651-.537-1.093-.709-.336-.131-.835-.285-1.756-.327-1.035-.047-1.318-.058-3.951-.058h-.922z" clipRule="evenodd" /></svg>
+                            </div>
+                        </div>
                     </div>
+
                     <div>
-                        <h4 className="mb-4 font-medium">Quick Links</h4>
-                        <ul className="space-y-2 text-sm text-gray-300">
-                            <li><Link href={`/${tenantId}`} className="hover:text-white">Home</Link></li>
-                            <li><Link href={`/${tenantId}/login?redirect=/${tenantId}/estimate`} className="hover:text-white">Get Estimate</Link></li>
-                            <li><Link href={`/${tenantId}/portfolio`} className="hover:text-white">Portfolio</Link></li>
+                        <h4 className="font-bold text-lg mb-6">Explore</h4>
+                        <ul className="space-y-4 text-gray-400">
+                            {[
+                                { name: "Home", href: `/${tenantId}` },
+                                { name: "Portfolio", href: `/${tenantId}/portfolio` },
+                                { name: "Testimonials", href: `/${tenantId}/testimonials` },
+                                { name: "About", href: `/${tenantId}/about` },
+                            ].map((link) => (
+                                <li key={link.name}>
+                                    <Link href={link.href} className="hover:text-indigo-400 transition-colors">{link.name}</Link>
+                                </li>
+                            ))}
                         </ul>
                     </div>
+
                     <div>
-                        <h4 className="mb-4 font-medium">Contact</h4>
-                        {phone && <p className="text-sm text-gray-300 mb-1">{phone}</p>}
-                        {email && <p className="text-sm text-gray-300 mb-1">{email}</p>}
+                        <h4 className="font-bold text-lg mb-6">Services</h4>
+                        <ul className="space-y-4 text-gray-400">
+                            <li><a href="#" className="hover:text-indigo-400 transition-colors">Residential Design</a></li>
+                            <li><a href="#" className="hover:text-indigo-400 transition-colors">Commercial Spaces</a></li>
+                            <li><a href="#" className="hover:text-indigo-400 transition-colors">Consultations</a></li>
+                            <li><Link href={`/${tenantId}/estimate`} className="hover:text-indigo-400 transition-colors">Get an Estimate</Link></li>
+                        </ul>
+                    </div>
+
+                    <div>
+                        <h4 className="font-bold text-lg mb-6">Contact</h4>
+                        <ul className="space-y-4 text-gray-400">
+                            {phone && (
+                                <li className="flex items-start gap-3">
+                                    <Phone className="h-5 w-5 text-indigo-500 mt-1" />
+                                    <span>{phone}</span>
+                                </li>
+                            )}
+                            {email && (
+                                <li className="flex items-start gap-3">
+                                    <svg className="h-5 w-5 text-indigo-500 mt-1" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>
+                                    <span>{email}</span>
+                                </li>
+                            )}
+                        </ul>
+                        <Link href={`/${tenantId}/book-consultation`}>
+                            <Button className="w-full mt-6 bg-indigo-600 hover:bg-indigo-700 text-white border-0">
+                                Book a Call
+                            </Button>
+                        </Link>
                     </div>
                 </div>
-                <div className="container mx-auto px-4 mt-8 pt-8 border-t border-gray-700">
-                    <p className="text-center text-sm text-gray-400">
-                        &copy; {new Date().getFullYear()} {brandName}. All rights reserved.
-                    </p>
+
+                <div className="container mx-auto px-6 md:px-12 mt-16 pt-8 border-t border-gray-800 text-center md:text-left flex flex-col md:flex-row justify-between items-center text-gray-500 text-sm">
+                    <p>&copy; {new Date().getFullYear()} {brandName}. All rights reserved.</p>
+                    <div className="flex gap-6 mt-4 md:mt-0">
+                        <a href="#" className="hover:text-white transition-colors">Privacy Policy</a>
+                        <a href="#" className="hover:text-white transition-colors">Terms of Service</a>
+                    </div>
                 </div>
             </footer>
         </div>

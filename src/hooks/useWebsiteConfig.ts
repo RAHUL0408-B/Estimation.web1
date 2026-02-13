@@ -13,10 +13,14 @@ export interface WebsiteConfig {
     primaryColor: string;
     secondaryColor: string;
     logoUrl: string;
+    faviconUrl: string;
     heroImageUrl: string;
     heroHeading: string;
     heroSubheading: string;
     footerText: string;
+    accentColor?: string;
+    buttonRadius?: number;
+    fontStyle?: "modern" | "elegant" | "minimal";
     updatedAt?: any;
 }
 
@@ -28,6 +32,7 @@ const defaultConfig: WebsiteConfig = {
     primaryColor: "#ea580c",
     secondaryColor: "#1c1917",
     logoUrl: "",
+    faviconUrl: "",
     heroImageUrl: "",
     heroHeading: "Design your dream home with perfection.",
     heroSubheading: "From modular kitchens to complete home renovations, we bring luxury and functionality together.",

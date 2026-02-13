@@ -5,15 +5,29 @@ import { doc, getDoc, updateDoc, collection, query, where, getDocs } from "fireb
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 
 interface EstimateData {
-    clientName: string;
-    clientPhone: string;
-    clientEmail?: string;
+    customerInfo: {
+        name: string;
+        phone: string;
+        email: string;
+        city: string;
+    };
+    segment: 'Residential' | 'Commercial';
+    plan: 'Basic' | 'Standard' | 'Luxe';
     carpetArea: number;
-    rooms: string[];
-    materialGrade: string;
-    finishType: string;
+    bedrooms: number;
+    bathrooms: number;
+    configuration: {
+        livingArea: { [itemId: string]: number };
+        kitchen: {
+            layout: string;
+            material: string;
+            items: { [itemId: string]: number };
+        };
+        bedrooms: Array<{ items: { [itemId: string]: number } }>;
+        bathrooms: Array<{ items: { [itemId: string]: number } }>;
+    };
     totalAmount: number;
-    formData?: any;
+    tenantId: string;
     createdAt: any;
 }
 
@@ -23,136 +37,239 @@ export async function generateEstimatePDF(
     options: { download?: boolean; uploadToStorage?: boolean } = { download: true, uploadToStorage: true }
 ): Promise<{ success: boolean; pdfUrl?: string }> {
     try {
-        // Fetch estimate data from Firestore
-        const estimateRef = doc(db, "estimates", estimateId);
-        const estimateSnap = await getDoc(estimateRef);
+        // Find estimate in tenant subcollection
+        // We need to search across all tenants or have the tenantId passed in
+        // For now, we'll try to find it in the estimates collection directly
+        let estimateData: EstimateData | null = null;
+        let estimateDocPath = "";
 
-        if (!estimateSnap.exists()) {
-            throw new Error("Estimate not found");
+        // Try to find the estimate by searching all tenants
+        const tenantsRef = collection(db, "tenants");
+        const tenantsSnap = await getDocs(tenantsRef);
+
+        for (const tenantDoc of tenantsSnap.docs) {
+            const estimateRef = doc(db, `tenants/${tenantDoc.id}/estimates/${estimateId}`);
+            const estimateSnap = await getDoc(estimateRef);
+
+            if (estimateSnap.exists()) {
+                estimateData = estimateSnap.data() as EstimateData;
+                estimateDocPath = estimateRef.path;
+                break;
+            }
         }
 
-        const estimateData = estimateSnap.data() as EstimateData;
+        if (!estimateData) {
+            throw new Error("Estimate not found");
+        }
 
         // Create PDF
         const pdf = new jsPDF();
 
         // Company Name Header
-        pdf.setFontSize(18);
-        pdf.setTextColor(30, 30, 30);
-        pdf.text(companyName, 105, 15, { align: "center" });
+        pdf.setFontSize(20);
+        pdf.setTextColor(15, 23, 42); // #0F172A
+        pdf.text(companyName, 105, 20, { align: "center" });
 
         // Divider line
         pdf.setDrawColor(200, 200, 200);
-        pdf.line(14, 20, 196, 20);
+        pdf.line(14, 25, 196, 25);
 
         // Title
         pdf.setFontSize(16);
         pdf.setTextColor(60, 60, 60);
-        pdf.text("Estimate Breakdown", 105, 30, { align: "center" });
+        pdf.text("Interior Estimate Breakdown", 105, 35, { align: "center" });
 
         // Estimate Info
         pdf.setFontSize(9);
         pdf.setTextColor(100, 100, 100);
-        pdf.text(`Estimate ID: ${estimateId.slice(0, 12)}`, 14, 40);
-        pdf.text(`Date: ${estimateData.createdAt?.toDate ? estimateData.createdAt.toDate().toLocaleDateString() : new Date().toLocaleDateString()}`, 14, 45);
+        pdf.text(`Estimate ID: ${estimateId.slice(0, 12)}`, 14, 45);
+        pdf.text(`Date: ${estimateData.createdAt?.toDate ? estimateData.createdAt.toDate().toLocaleDateString() : new Date().toLocaleDateString()}`, 14, 50);
 
         // Client Information Section
-        pdf.setFontSize(11);
-        pdf.setTextColor(40, 40, 40);
-        pdf.text("Client Information", 14, 55);
-
-        pdf.setFontSize(9);
-        pdf.setTextColor(80, 80, 80);
-        pdf.text(`Name: ${estimateData.clientName}`, 14, 62);
-        pdf.text(`Phone: ${estimateData.clientPhone || "N/A"}`, 14, 67);
-
-        // Project Details Section
-        pdf.setFontSize(11);
-        pdf.setTextColor(40, 40, 40);
-        pdf.text("Project Details", 14, 80);
-
-        const projectDetails: any[] = [
-            ['Carpet Area', `${estimateData.carpetArea} sqft`],
-            ['Rooms', estimateData.rooms.join(", ") || "N/A"],
-            ['Material Grade', estimateData.materialGrade],
-            ['Finish Type', estimateData.finishType]
-        ];
-
-        // Add living area options if available
-        if (estimateData.formData?.livingAreaOptions) {
-            const selectedOptions = Object.entries(estimateData.formData.livingAreaOptions)
-                .filter(([_, selected]) => selected)
-                .map(([key]) => key.replace(/([A-Z])/g, ' $1').trim());
-
-            if (selectedOptions.length > 0) {
-                projectDetails.push(['Living Area Options', selectedOptions.join(", ")]);
-            }
-        }
-
-        // Add kitchen details if available
-        if (estimateData.formData?.kitchen) {
-            const kitchen = estimateData.formData.kitchen;
-            if (kitchen.layout && kitchen.woodType) {
-                projectDetails.push(['Kitchen', `${kitchen.layout} - ${kitchen.woodType}`]);
-            }
-            if (kitchen.addOns && kitchen.addOns.length > 0) {
-                projectDetails.push(['Kitchen Add-ons', kitchen.addOns.join(", ")]);
-            }
-        }
-
-        // Add bedroom details if available
-        if (estimateData.formData?.bedrooms) {
-            const bedrooms = estimateData.formData.bedrooms;
-            let bedroomDetails = `${bedrooms.count || 0} Bedroom(s)`;
-            if (bedrooms.hasMaster) bedroomDetails += ", Master BR";
-            if (bedrooms.hasWardrobe) bedroomDetails += ", Wardrobe";
-            if (bedrooms.hasStudyUnit) bedroomDetails += ", Study Unit";
-            projectDetails.push(['Bedrooms', bedroomDetails]);
-        }
-
-        autoTable(pdf, {
-            startY: 85,
-            head: [['Item', 'Details']],
-            body: projectDetails,
-            theme: 'plain',
-            headStyles: {
-                fillColor: [245, 245, 245],
-                textColor: [60, 60, 60],
-                fontStyle: 'bold',
-                fontSize: 9
-            },
-            bodyStyles: {
-                textColor: [80, 80, 80],
-                fontSize: 9
-            },
-            alternateRowStyles: {
-                fillColor: [250, 250, 250]
-            }
-        });
-
-        // Cost Summary Section
-        const finalY = (pdf as any).lastAutoTable.finalY + 15;
-
-        pdf.setFontSize(11);
-        pdf.setTextColor(40, 40, 40);
-        pdf.text("Cost Summary", 14, finalY);
-
-        // Cost box
-        pdf.setFillColor(248, 248, 248);
-        pdf.rect(14, finalY + 5, 182, 25, 'F');
+        pdf.setFontSize(12);
+        pdf.setTextColor(15, 23, 42);
+        pdf.text("Customer Information", 14, 62);
 
         pdf.setFontSize(10);
         pdf.setTextColor(80, 80, 80);
-        pdf.text("Estimated Total Cost:", 20, finalY + 15);
+        pdf.text(`Name: ${estimateData.customerInfo.name}`, 14, 70);
+        pdf.text(`Phone: ${estimateData.customerInfo.phone}`, 14, 76);
+        pdf.text(`Email: ${estimateData.customerInfo.email}`, 14, 82);
+        pdf.text(`City: ${estimateData.customerInfo.city}`, 14, 88);
 
-        pdf.setFontSize(18);
-        pdf.setTextColor(30, 30, 30);
-        pdf.text(`₹ ${estimateData.totalAmount.toLocaleString('en-IN')}`, 20, finalY + 25);
+        // Project Details Section
+        pdf.setFontSize(12);
+        pdf.setTextColor(15, 23, 42);
+        pdf.text("Project Details", 14, 100);
+
+        const projectDetails: any[] = [
+            ['Segment', estimateData.segment],
+            ['Plan Selected', estimateData.plan],
+            ['Carpet Area', `${estimateData.carpetArea} sqft`],
+            ['Bedrooms', estimateData.bedrooms.toString()],
+            ['Bathrooms', estimateData.bathrooms.toString()]
+        ];
+
+        if (estimateData.configuration.kitchen.layout) {
+            projectDetails.push(['Kitchen Layout', estimateData.configuration.kitchen.layout]);
+        }
+        if (estimateData.configuration.kitchen.material) {
+            projectDetails.push(['Kitchen Material', estimateData.configuration.kitchen.material]);
+        }
+
+        autoTable(pdf, {
+            startY: 105,
+            head: [['Detail', 'Value']],
+            body: projectDetails,
+            theme: 'striped',
+            headStyles: {
+                fillColor: [15, 23, 42],
+                textColor: [255, 255, 255],
+                fontStyle: 'bold',
+                fontSize: 10
+            },
+            bodyStyles: {
+                textColor: [60, 60, 60],
+                fontSize: 9
+            },
+            alternateRowStyles: {
+                fillColor: [248, 250, 252]
+            }
+        });
+
+        // Item Breakdown Section
+        let currentY = (pdf as any).lastAutoTable.finalY + 10;
+
+        pdf.setFontSize(12);
+        pdf.setTextColor(15, 23, 42);
+        pdf.text("Item Breakdown", 14, currentY);
+
+        // Fetch pricing config to get item names
+        const pricingConfigRef = doc(db, "pricing_configs", estimateData.tenantId);
+        const pricingConfigSnap = await getDoc(pricingConfigRef);
+        const pricingConfig = pricingConfigSnap.exists() ? pricingConfigSnap.data() : null;
+
+        const itemBreakdown: any[] = [];
+
+        // Helper to get item name
+        const getItemName = (categoryId: string, itemId: string) => {
+            if (!pricingConfig?.categories) return itemId;
+            const category = pricingConfig.categories.find((c: any) => c.id === categoryId);
+            if (!category) return itemId;
+            const item = category.items.find((i: any) => i.id === itemId);
+            return item ? item.name : itemId;
+        };
+
+        // Living Area items
+        if (estimateData.configuration.livingArea) {
+            Object.entries(estimateData.configuration.livingArea).forEach(([itemId, quantity]) => {
+                if (quantity > 0) {
+                    itemBreakdown.push([
+                        'Living Area',
+                        getItemName('living_area', itemId),
+                        quantity.toString()
+                    ]);
+                }
+            });
+        }
+
+        // Kitchen items
+        if (estimateData.configuration.kitchen.items) {
+            Object.entries(estimateData.configuration.kitchen.items).forEach(([itemId, quantity]) => {
+                if (quantity > 0) {
+                    itemBreakdown.push([
+                        'Kitchen',
+                        getItemName('kitchen', itemId),
+                        quantity.toString()
+                    ]);
+                }
+            });
+        }
+
+        // Bedroom items
+        if (estimateData.configuration.bedrooms) {
+            estimateData.configuration.bedrooms.forEach((bedroom, index) => {
+                Object.entries(bedroom.items).forEach(([itemId, quantity]) => {
+                    if (quantity > 0) {
+                        itemBreakdown.push([
+                            `Bedroom ${index + 1}`,
+                            getItemName('bedroom', itemId),
+                            quantity.toString()
+                        ]);
+                    }
+                });
+            });
+        }
+
+        // Bathroom items
+        if (estimateData.configuration.bathrooms) {
+            estimateData.configuration.bathrooms.forEach((bathroom, index) => {
+                Object.entries(bathroom.items).forEach(([itemId, quantity]) => {
+                    if (quantity > 0) {
+                        itemBreakdown.push([
+                            `Bathroom ${index + 1}`,
+                            getItemName('bathroom', itemId),
+                            quantity.toString()
+                        ]);
+                    }
+                });
+            });
+        }
+
+        if (itemBreakdown.length > 0) {
+            autoTable(pdf, {
+                startY: currentY + 5,
+                head: [['Category', 'Item', 'Quantity']],
+                body: itemBreakdown,
+                theme: 'striped',
+                headStyles: {
+                    fillColor: [15, 23, 42],
+                    textColor: [255, 255, 255],
+                    fontStyle: 'bold',
+                    fontSize: 10
+                },
+                bodyStyles: {
+                    textColor: [60, 60, 60],
+                    fontSize: 9
+                },
+                alternateRowStyles: {
+                    fillColor: [248, 250, 252]
+                }
+            });
+
+            currentY = (pdf as any).lastAutoTable.finalY + 15;
+        }
+
+        // Cost Summary Section
+        pdf.setFontSize(12);
+        pdf.setTextColor(15, 23, 42);
+        pdf.text("Total Estimated Cost", 14, currentY);
+
+        // Cost box with gradient effect
+        pdf.setFillColor(37, 99, 235); // Blue-600
+        pdf.roundedRect(14, currentY + 5, 182, 30, 3, 3, 'F');
+
+        pdf.setFontSize(11);
+        pdf.setTextColor(255, 255, 255);
+        pdf.text("Total Amount:", 20, currentY + 18);
+
+        pdf.setFontSize(22);
+        pdf.setTextColor(255, 255, 255);
+        pdf.text(`₹ ${estimateData.totalAmount.toLocaleString('en-IN')}`, 20, currentY + 30);
+
+        pdf.setFontSize(9);
+        pdf.setTextColor(255, 255, 255);
+        pdf.text(`Plan: ${estimateData.plan}`, 150, currentY + 30);
 
         // Footer note
         pdf.setFontSize(8);
         pdf.setTextColor(120, 120, 120);
-        pdf.text("Note: This is an approximate estimate. Final quote may vary based on site conditions and material availability.", 14, finalY + 40, { maxWidth: 180 });
+        pdf.text(
+            "Note: This is an approximate estimate. Final quote may vary based on site conditions and material availability.",
+            14,
+            currentY + 45,
+            { maxWidth: 180 }
+        );
 
         // Footer
         pdf.setFontSize(7);
@@ -160,7 +277,7 @@ export async function generateEstimatePDF(
         pdf.text("Generated by Interior Estimation System", 105, 285, { align: "center" });
 
         // Generate filename
-        const clientNameSlug = (estimateData.clientName || 'estimate').replace(/[^a-zA-Z0-9]/g, '_').toLowerCase();
+        const clientNameSlug = estimateData.customerInfo.name.replace(/[^a-zA-Z0-9]/g, '_').toLowerCase();
         const dateStr = new Date().toISOString().split('T')[0];
         const filename = `estimate_${clientNameSlug}_${dateStr}.pdf`;
 
@@ -174,14 +291,9 @@ export async function generateEstimatePDF(
                 await uploadBytes(storageRef, pdfBlob);
                 pdfUrl = await getDownloadURL(storageRef);
 
-                // Find and update the order document with pdfUrl
-                const ordersRef = collection(db, "orders");
-                const orderQuery = query(ordersRef, where("estimateId", "==", estimateId));
-                const orderSnapshot = await getDocs(orderQuery);
-
-                if (!orderSnapshot.empty) {
-                    const orderDoc = orderSnapshot.docs[0];
-                    await updateDoc(doc(db, "orders", orderDoc.id), { pdfUrl });
+                // Update the estimate document with pdfUrl
+                if (estimateDocPath) {
+                    await updateDoc(doc(db, estimateDocPath), { pdfUrl });
                 }
             } catch (uploadError) {
                 console.error("Error uploading PDF to storage:", uploadError);
