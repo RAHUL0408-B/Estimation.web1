@@ -3,16 +3,8 @@
 import { useEffect, useState } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 
-interface HeroSlide {
-    id: string;
-    imageUrl: string;
-    heading: string;
-    subheading: string;
-    primaryButtonText: string;
-    primaryButtonLink: string;
-    secondaryButtonText: string;
-    secondaryButtonLink: string;
-}
+import { HeroSlide } from "@/types/website";
+import Image from "next/image";
 
 interface HeroSliderProps {
     slides: HeroSlide[];
@@ -71,10 +63,13 @@ export default function HeroSlider({ slides, primaryColor }: HeroSliderProps) {
                 >
                     {/* Background Image */}
                     <div className="absolute inset-0">
-                        <img
+                        <Image
                             src={slide.imageUrl}
                             alt={slide.heading}
-                            className="h-full w-full object-cover"
+                            fill
+                            priority={index === 0}
+                            className="object-cover"
+                            sizes="100vw"
                         />
                         <div className="absolute inset-0 bg-gradient-to-b from-black/30 via-black/40 to-black/70" />
                     </div>

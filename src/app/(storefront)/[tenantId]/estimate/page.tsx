@@ -7,7 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Check, Loader2, CheckCircle2, Plus, Minus, Download, Home, Building2, ChevronRight, ArrowLeft } from "lucide-react";
+import { Check, Loader2, CheckCircle2, Plus, Minus, Download, Home, Building2, ChevronRight, ArrowLeft, Menu, ArrowRight as ArrowForward, User, LayoutGrid, Calculator, ChevronDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { usePricingConfig, PricingItem } from "@/hooks/usePricingConfig";
 import { useCities } from "@/hooks/useCities";

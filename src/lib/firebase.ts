@@ -16,9 +16,9 @@ const firebaseConfig = {
 
 // Initialize Firebase (Singleton pattern)
 let app: FirebaseApp | undefined;
-let auth: Auth | any;
-let db: Firestore | any;
-let storage: FirebaseStorage | any;
+let auth: Auth | any = null;
+let db: Firestore | any = null;
+let storage: FirebaseStorage | any = null;
 let analytics: Analytics | undefined;
 
 if (typeof window !== "undefined") {
@@ -39,10 +39,13 @@ if (typeof window !== "undefined") {
                     analytics = getAnalytics(app);
                 }
             });
+        } else {
+            console.warn("Firebase API Key is missing. Check your environment variables (NEXT_PUBLIC_FIREBASE_API_KEY).");
         }
     } catch (error) {
         console.error("Firebase initialization error:", error);
     }
 }
 
+export const isFirebaseReady = !!(auth && db);
 export { app, auth, db, storage, analytics };

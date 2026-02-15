@@ -46,7 +46,8 @@ export function useWebsiteConfig(tenantId: string | null) {
 
     // Real-time listener
     useEffect(() => {
-        if (!tenantId) {
+        if (!tenantId || !db) {
+            if (!db) console.warn("Firestore not initialized. Skipping config listener.");
             setLoading(false);
             return;
         }
@@ -136,33 +137,67 @@ export function usePublicWebsiteConfig(storeSlug: string) {
             return;
         }
 
+        // Set a timeout to prevent indefinite loading
+        const timeoutId = setTimeout(() => {
+            if (loading) {
+                console.warn(`Timeout resolving tenant: ${storeSlug}. Using defaults.`);
+                setConfig(defaultConfig);
+                setLoading(false);
+            }
+        }, 3000); // 3 second timeout
+
         const resolveTenant = async () => {
             try {
                 const { getTenantByStoreId } = await import("@/lib/firestoreHelpers");
+                if (!db) {
+                    console.warn("Firestore not initialized. Cannot resolve tenant.");
+                    setConfig(defaultConfig);
+                    setLoading(false);
+                    clearTimeout(timeoutId);
+                    return;
+                }
                 const tenant = await getTenantByStoreId(storeSlug);
                 if (tenant) {
                     setTenantId(tenant.id);
                 } else {
+                    console.warn(`Tenant not found: ${storeSlug}. Using defaults.`);
+                    setConfig(defaultConfig);
                     setLoading(false);
                 }
+                clearTimeout(timeoutId);
             } catch (error) {
                 console.error("Error resolving tenant:", error);
+                setConfig(defaultConfig);
                 setLoading(false);
+                clearTimeout(timeoutId);
             }
         };
 
         resolveTenant();
+
+        return () => clearTimeout(timeoutId);
     }, [storeSlug]);
 
     // Real-time config listener
     useEffect(() => {
-        if (!tenantId) return;
+        if (!tenantId || !db) {
+            if (!db && tenantId) console.warn("Firestore not initialized. Skipping public config listener.");
+            return;
+        }
 
         const configRef = doc(db, "tenants", tenantId, "websiteConfig", "settings");
+
+        // Timeout in case snapshot never arrives
+        const timeoutId = setTimeout(() => {
+            console.warn(`Timeout fetching config for tenant: ${tenantId}. Using defaults.`);
+            setConfig(defaultConfig);
+            setLoading(false);
+        }, 2000); // 2 second timeout
 
         const unsubscribe = onSnapshot(
             configRef,
             (snapshot) => {
+                clearTimeout(timeoutId);
                 if (snapshot.exists()) {
                     setConfig({ ...defaultConfig, ...snapshot.data() } as WebsiteConfig);
                 } else {
@@ -171,12 +206,17 @@ export function usePublicWebsiteConfig(storeSlug: string) {
                 setLoading(false);
             },
             (error) => {
+                clearTimeout(timeoutId);
                 console.error("Error fetching public config:", error);
+                setConfig(defaultConfig);
                 setLoading(false);
             }
         );
 
-        return () => unsubscribe();
+        return () => {
+            clearTimeout(timeoutId);
+            unsubscribe();
+        };
     }, [tenantId]);
 
     return { config, tenantId, loading };

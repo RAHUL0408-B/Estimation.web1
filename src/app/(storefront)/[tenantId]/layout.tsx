@@ -68,6 +68,21 @@ export default function StorefrontLayout({
         }
     }, [config?.faviconUrl, config]);
 
+    // Show loading state only for initial load (first 2 seconds max)
+    if (loading && !config) {
+        return (
+            <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-gray-50 to-gray-100">
+                <div className="text-center space-y-4">
+                    <div className="relative w-16 h-16 mx-auto">
+                        <div className="absolute inset-0 border-4 border-indigo-200 rounded-full"></div>
+                        <div className="absolute inset-0 border-4 border-indigo-600 rounded-full border-t-transparent animate-spin"></div>
+                    </div>
+                    <p className="text-gray-600 font-medium">Loading {tenantId}...</p>
+                </div>
+            </div>
+        );
+    }
+
     return (
         <div className="flex min-h-screen flex-col font-sans">
             <header

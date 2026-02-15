@@ -163,6 +163,7 @@ export async function addDesigner(designerData: {
     storeId: string;
     plan: "free" | "basic" | "pro" | "enterprise";
 }): Promise<void> {
+    if (!db) throw new Error("Firestore not initialized");
     const tenantsRef = collection(db, "tenants");
 
     // Check for storeId uniqueness
@@ -241,6 +242,10 @@ export async function deleteDesigner(tenantId: string): Promise<void> {
  * Get tenant by email
  */
 export async function getTenantByEmail(email: string): Promise<Tenant | null> {
+    if (!db) {
+        console.error("Firestore not initialized in getTenantByEmail");
+        return null;
+    }
     const tenantsRef = collection(db, "tenants");
     const q = query(tenantsRef, where("email", "==", email));
 
@@ -258,6 +263,10 @@ export async function getTenantByEmail(email: string): Promise<Tenant | null> {
  * Get tenant by ID
  */
 export async function getTenantById(tenantId: string): Promise<Tenant | null> {
+    if (!db) {
+        console.error("Firestore not initialized in getTenantById");
+        return null;
+    }
     const tenantRef = doc(db, "tenants", tenantId);
     const snapshot = await getDoc(tenantRef);
 
@@ -272,6 +281,10 @@ export async function getTenantById(tenantId: string): Promise<Tenant | null> {
  * Get tenant by store ID (URL slug)
  */
 export async function getTenantByStoreId(storeId: string): Promise<Tenant | null> {
+    if (!db) {
+        console.error("Firestore not initialized in getTenantByStoreId");
+        return null;
+    }
     const tenantsRef = collection(db, "tenants");
     const q = query(tenantsRef, where("storeId", "==", storeId));
 

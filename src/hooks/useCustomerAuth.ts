@@ -31,6 +31,12 @@ export function useCustomerAuth() {
     const [isAdmin, setIsAdmin] = useState(false);
 
     useEffect(() => {
+        if (!auth) {
+            console.warn("Firebase Auth not initialized. Skipping auth state listener.");
+            setLoading(false);
+            return;
+        }
+
         const unsubscribe = onAuthStateChanged(auth, async (user) => {
             if (user) {
                 // IMPORTANT: First check if this user is an admin

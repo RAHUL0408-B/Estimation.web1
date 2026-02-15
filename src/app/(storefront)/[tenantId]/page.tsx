@@ -39,10 +39,17 @@ export default function StorefrontPage({ params }: StorefrontPageProps) {
                 return;
             }
 
+            if (!db) {
+                console.error("Firestore not initialized. Cannot load homepage data.");
+                if (isMounted) setLoading(false);
+                return;
+            }
+
             try {
                 // Resolve tenant ID from store slug
                 const tenant = await getTenantByStoreId(storeSlug);
                 if (!tenant) {
+                    console.warn(`Tenant not found for store slug: ${storeSlug}`);
                     if (isMounted) setLoading(false);
                     return;
                 }
@@ -64,7 +71,12 @@ export default function StorefrontPage({ params }: StorefrontPageProps) {
                 // Load home page content
                 const homeDoc = await getDoc(doc(db, "tenants", tenant.id, "pages", "home"));
                 if (isMounted && homeDoc.exists()) {
-                    setHomeContent(homeDoc.data() as HomePageContent);
+                    const data = homeDoc.data() as HomePageContent;
+                    console.log("Home page data loaded:", data);
+                    console.log("Hero slides:", data.heroSlides);
+                    setHomeContent(data);
+                } else {
+                    console.warn("No home page content found for tenant:", tenant.id);
                 }
 
                 // Load portfolio projects (only those marked for homepage)
