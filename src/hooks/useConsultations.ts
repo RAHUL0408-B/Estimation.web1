@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { db } from "@/lib/firebase";
-import { collection, query, where, onSnapshot } from "firebase/firestore";
+import { collection, query, where, onSnapshot, doc, updateDoc } from "firebase/firestore";
 
 export interface ConsultationRequest {
     id: string;
@@ -15,6 +15,14 @@ export interface ConsultationRequest {
     status: "new" | "contacted" | "closed";
     createdAt: any;
     tenantId: string;
+    assignedTo?: string; // Employee ID
+    assignedToName?: string; // Employee Name
+    timeline?: Array<{
+        status: string;
+        timestamp: any;
+        updatedBy?: string;
+        note?: string;
+    }>;
 }
 
 export function useConsultations(tenantId: string | null) {
@@ -74,5 +82,17 @@ export function useConsultations(tenantId: string | null) {
         return () => unsubscribe();
     }, [tenantId]);
 
-    return { requests, stats, loading };
+    const updateRequest = async (requestId: string, updates: Partial<ConsultationRequest>) => {
+        if (!tenantId) return false;
+        try {
+            const requestRef = doc(db, "consultation_requests", requestId);
+            await updateDoc(requestRef, updates);
+            return true;
+        } catch (error) {
+            console.error("Error updating consultation request:", error);
+            return false;
+        }
+    };
+
+    return { requests, stats, loading, updateRequest };
 }

@@ -1,8 +1,9 @@
 "use client";
 
-import { MessageSquare, MoreHorizontal } from "lucide-react";
+import { useState, useEffect } from "react";
+import { MessageSquare, MoreHorizontal, UserPlus } from "lucide-react";
 import { useTenantAuth } from "@/hooks/useTenantAuth";
-import { useConsultations } from "@/hooks/useConsultations";
+import { useConsultations, ConsultationRequest } from "@/hooks/useConsultations";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -15,10 +16,43 @@ import {
     TableHeader,
     TableRow,
 } from "@/components/ui/table";
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "@/components/ui/select";
+import { collection, getDocs } from "firebase/firestore";
+import { db } from "@/lib/firebase";
+
+interface Employee {
+    id: string;
+    name: string;
+}
 
 export default function ConsultationRequestsPage() {
     const { tenant } = useTenantAuth();
-    const { requests, stats, loading } = useConsultations(tenant?.id || null);
+    const { requests, stats, loading, updateRequest } = useConsultations(tenant?.id || null);
+    const [employees, setEmployees] = useState<Employee[]>([]);
+
+    useEffect(() => {
+        const fetchEmployees = async () => {
+            if (!tenant?.id) return;
+            try {
+                const employeesRef = collection(db, "tenants", tenant.id, "employees");
+                const snapshot = await getDocs(employeesRef);
+                const empList = snapshot.docs.map(doc => ({
+                    id: doc.id,
+                    name: doc.data().name
+                }));
+                setEmployees(empList);
+            } catch (error) {
+                console.error("Error fetching employees:", error);
+            }
+        };
+        fetchEmployees();
+    }, [tenant?.id]);
 
     const getStatusColor = (status: string) => {
         switch (status) {
@@ -27,6 +61,15 @@ export default function ConsultationRequestsPage() {
             case "closed": return "bg-gray-50 text-gray-400 border-gray-100 hover:bg-gray-50";
             default: return "bg-gray-100 text-gray-700 hover:bg-gray-100";
         }
+    };
+
+    const handleAssign = async (requestId: string, employeeId: string) => {
+        const employeeName = employees.find(e => e.id === employeeId)?.name || "Unknown";
+        await updateRequest(requestId, {
+            assignedTo: employeeId,
+            assignedToName: employeeName,
+            status: "contacted" // Auto-update status to contacted/in-progress
+        });
     };
 
     if (loading) {
@@ -81,12 +124,12 @@ export default function ConsultationRequestsPage() {
                             <TableHeader>
                                 <TableRow className="bg-gray-50/50 hover:bg-transparent">
                                     <TableHead className="text-[10px] font-bold text-gray-400 uppercase">Client Name</TableHead>
+                                    <TableHead className="text-[10px] font-bold text-gray-400 uppercase">Assigned To</TableHead>
                                     <TableHead className="text-[10px] font-bold text-gray-400 uppercase">Phone</TableHead>
-                                    <TableHead className="text-[10px] font-bold text-gray-400 uppercase">Source</TableHead>
                                     <TableHead className="text-[10px] font-bold text-gray-400 uppercase">Requirement</TableHead>
                                     <TableHead className="text-[10px] font-bold text-gray-400 uppercase">Status</TableHead>
                                     <TableHead className="text-[10px] font-bold text-gray-400 uppercase">Date</TableHead>
-                                    <TableHead className="text-[10px] font-bold text-gray-400 uppercase text-right">Actions</TableHead>
+
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
@@ -94,14 +137,30 @@ export default function ConsultationRequestsPage() {
                                     <TableRow key={request.id} className="hover:bg-gray-50">
                                         <TableCell>
                                             <p className="font-semibold text-gray-900">{request.clientName}</p>
-                                        </TableCell>
-                                        <TableCell className="text-gray-600">
-                                            {request.phone || request.phoneNumber || "-"}
-                                        </TableCell>
-                                        <TableCell>
-                                            <Badge variant="secondary" className="bg-purple-50 text-purple-600 border-none uppercase text-[9px] font-bold px-2 py-0.5">
+                                            <Badge variant="secondary" className="bg-purple-50 text-purple-600 border-none uppercase text-[9px] font-bold px-2 py-0.5 mt-1">
                                                 {request.source || "website"}
                                             </Badge>
+                                        </TableCell>
+                                        <TableCell>
+                                            <div className="w-[180px]">
+                                                <Select
+                                                    value={request.assignedTo || "unassigned"}
+                                                    onValueChange={(val) => handleAssign(request.id, val)}
+                                                >
+                                                    <SelectTrigger className="h-8 text-xs bg-white">
+                                                        <SelectValue placeholder="Assign..." />
+                                                    </SelectTrigger>
+                                                    <SelectContent>
+                                                        <SelectItem value="unassigned" disabled>Assign to...</SelectItem>
+                                                        {employees.map(emp => (
+                                                            <SelectItem key={emp.id} value={emp.id}>{emp.name}</SelectItem>
+                                                        ))}
+                                                    </SelectContent>
+                                                </Select>
+                                            </div>
+                                        </TableCell>
+                                        <TableCell className="text-gray-600 font-mono text-xs">
+                                            {request.phone || request.phoneNumber || "-"}
                                         </TableCell>
                                         <TableCell>
                                             <p className="text-sm text-gray-600 line-clamp-2 max-w-[250px]">{request.requirement}</p>
@@ -112,16 +171,11 @@ export default function ConsultationRequestsPage() {
                                             </Badge>
                                         </TableCell>
                                         <TableCell className="text-gray-500 text-sm">
-                                            {request.createdAt?.toDate().toLocaleDateString("en-US", {
+                                            {request.createdAt?.toDate ? request.createdAt.toDate().toLocaleDateString("en-US", {
                                                 month: "short",
                                                 day: "numeric",
                                                 year: "numeric"
-                                            })}
-                                        </TableCell>
-                                        <TableCell className="text-right">
-                                            <Button variant="ghost" size="icon" className="text-gray-400 hover:text-gray-600">
-                                                <MoreHorizontal className="h-4 w-4" />
-                                            </Button>
+                                            }) : "-"}
                                         </TableCell>
                                     </TableRow>
                                 ))}

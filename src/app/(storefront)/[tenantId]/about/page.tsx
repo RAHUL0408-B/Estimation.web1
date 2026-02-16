@@ -193,7 +193,7 @@ export default function AboutPage({ params }: { params: Promise<{ tenantId: stri
                             <h2 className="text-3xl font-bold mb-4" style={{ color: secondaryColor }}>Meet Our Team</h2>
                             <p className="text-gray-600 max-w-2xl mx-auto">The talented people behind our success.</p>
                         </div>
-                        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8 max-w-6xl mx-auto">
+                        <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-8 max-w-6xl mx-auto">
                             {teamMembers.map((member) => (
                                 <div key={member.id} className="bg-white rounded-2xl overflow-hidden shadow-lg group hover:shadow-xl transition-all duration-300">
                                     <div className="relative h-80 overflow-hidden">

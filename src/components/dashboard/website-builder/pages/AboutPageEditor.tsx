@@ -10,15 +10,12 @@ import {
     Upload,
     Loader2,
     Save,
-    Plus,
-    Trash2,
-    Edit,
     Linkedin,
     Instagram,
 } from "lucide-react";
-import { useAboutUs, useTeamMembers } from "@/hooks/useWebsiteBuilder";
+import { useAboutUs } from "@/hooks/useWebsiteBuilder";
 import { useToast } from "@/hooks/use-toast";
-import type { TeamMember } from "@/types/website";
+
 
 interface AboutPageEditorProps {
     tenantId: string;
@@ -34,15 +31,7 @@ export default function AboutPageEditor({ tenantId }: AboutPageEditorProps) {
         uploadAboutImage,
     } = useAboutUs(tenantId);
 
-    // Team Members Hook
-    const {
-        teamMembers,
-        loading: teamLoading,
-        addTeamMember,
-        updateTeamMember,
-        deleteTeamMember,
-        uploadTeamMemberImage,
-    } = useTeamMembers(tenantId);
+
 
     const { toast } = useToast();
 
@@ -61,11 +50,7 @@ export default function AboutPageEditor({ tenantId }: AboutPageEditorProps) {
         projectsCompleted: 0,
     });
 
-    // Team Member State
-    const [editingMember, setEditingMember] = useState<TeamMember | null>(null);
-    const [isTeamDialogOpen, setIsTeamDialogOpen] = useState(false);
-    const [uploadingMemberImage, setUploadingMemberImage] = useState(false);
-    const memberImageInputRef = useRef<HTMLInputElement>(null);
+
 
     const [uploadingFounderImage, setUploadingFounderImage] = useState(false);
     const founderImageInputRef = useRef<HTMLInputElement>(null);
@@ -136,67 +121,9 @@ export default function AboutPageEditor({ tenantId }: AboutPageEditorProps) {
         }
     };
 
-    // Team Member Handlers
-    const handleAddMember = () => {
-        setEditingMember({
-            id: "",
-            name: "",
-            role: "",
-            bio: "",
-            imageUrl: "",
-            linkedinUrl: "",
-            instagramUrl: "",
-            showOnHomepage: false,
-            order: 0,
-        });
-        setIsTeamDialogOpen(true);
-    };
 
-    const handleEditMember = (member: TeamMember) => {
-        setEditingMember(member);
-        setIsTeamDialogOpen(true);
-    };
 
-    const handleSaveMember = async () => {
-        if (!editingMember) return;
-
-        let success = false;
-        if (editingMember.id) {
-            success = await updateTeamMember(editingMember.id, editingMember);
-        } else {
-            success = await addTeamMember(editingMember);
-        }
-
-        if (success) {
-            toast({
-                title: "Success",
-                description: editingMember.id
-                    ? "Team member updated."
-                    : "Team member added.",
-            });
-            setIsTeamDialogOpen(false);
-            setEditingMember(null);
-        }
-    };
-
-    const handleUploadMemberImage = async (e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0];
-        if (!file || !editingMember) return;
-
-        setUploadingMemberImage(true);
-        const url = await uploadTeamMemberImage(file);
-        setUploadingMemberImage(false);
-
-        if (url) {
-            setEditingMember({ ...editingMember, imageUrl: url });
-            toast({
-                title: "Uploaded",
-                description: "Member photo uploaded successfully.",
-            });
-        }
-    };
-
-    if (aboutLoading || teamLoading) {
+    if (aboutLoading) {
         return (
             <div className="flex items-center justify-center min-h-[400px]">
                 <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
@@ -366,83 +293,6 @@ export default function AboutPageEditor({ tenantId }: AboutPageEditorProps) {
                 </CardContent>
             </Card>
 
-            {/* Team Members */}
-            <Card className="rounded-xl shadow-sm border-gray-200">
-                <CardHeader className="pb-4">
-                    <div className="flex items-center justify-between">
-                        <CardTitle className="text-xl">Team Members</CardTitle>
-                        <Button
-                            onClick={handleAddMember}
-                            size="sm"
-                            className="bg-[#0F172A] hover:bg-[#1E293B] rounded-lg"
-                        >
-                            <Plus className="h-4 w-4 mr-2" />
-                            Add Member
-                        </Button>
-                    </div>
-                </CardHeader>
-                <CardContent>
-                    {teamMembers.length === 0 ? (
-                        <div className="text-center py-12 text-gray-500 bg-gray-50 rounded-lg border-2 border-dashed border-gray-200">
-                            <p>No team members added yet.</p>
-                            <Button variant="link" onClick={handleAddMember}>
-                                Add your first team member
-                            </Button>
-                        </div>
-                    ) : (
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                            {teamMembers.map((member) => (
-                                <div
-                                    key={member.id}
-                                    className="border border-gray-200 rounded-xl overflow-hidden hover:shadow-md transition-shadow bg-white"
-                                >
-                                    <div className="aspect-[4/3] bg-gray-100 relative">
-                                        {member.imageUrl ? (
-                                            <img
-                                                src={member.imageUrl}
-                                                alt={member.name}
-                                                className="w-full h-full object-cover"
-                                            />
-                                        ) : (
-                                            <div className="flex items-center justify-center h-full text-gray-300">
-                                                <div className="text-center">
-                                                    <div className="h-16 w-16 bg-gray-200 rounded-full mx-auto mb-2" />
-                                                </div>
-                                            </div>
-                                        )}
-                                    </div>
-                                    <div className="p-4">
-                                        <h4 className="font-semibold text-lg">{member.name}</h4>
-                                        <p className="text-sm text-primary font-medium mb-1">
-                                            {member.role}
-                                        </p>
-                                        <p className="text-xs text-gray-500 line-clamp-2 mb-4">
-                                            {member.bio}
-                                        </p>
-                                        <div className="flex justify-end gap-2">
-                                            <Button
-                                                size="sm"
-                                                variant="outline"
-                                                onClick={() => handleEditMember(member)}
-                                            >
-                                                <Edit className="h-3 w-3" />
-                                            </Button>
-                                            <Button
-                                                size="sm"
-                                                variant="destructive"
-                                                onClick={() => deleteTeamMember(member.id)}
-                                            >
-                                                <Trash2 className="h-3 w-3" />
-                                            </Button>
-                                        </div>
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-                    )}
-                </CardContent>
-            </Card>
-
             {/* Statistics */}
             <Card className="rounded-xl shadow-sm border-gray-200">
                 <CardHeader className="pb-4">
@@ -498,160 +348,7 @@ export default function AboutPageEditor({ tenantId }: AboutPageEditorProps) {
                 </Button>
             </div>
 
-            {/* Team Member Dialog */}
-            {isTeamDialogOpen && editingMember && (
-                <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-                    <div className="bg-white rounded-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto p-6">
-                        <h3 className="text-xl font-bold mb-4">
-                            {editingMember.id ? "Edit Team Member" : "Add Team Member"}
-                        </h3>
-                        <div className="space-y-6">
-                            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                                {/* Member Image */}
-                                <div className="space-y-2">
-                                    <Label>Photo</Label>
-                                    <div
-                                        className="relative w-full aspect-[3/4] rounded-lg border-2 border-dashed border-gray-300 cursor-pointer hover:border-gray-400 overflow-hidden"
-                                        onClick={() => memberImageInputRef.current?.click()}
-                                    >
-                                        {uploadingMemberImage ? (
-                                            <div className="flex items-center justify-center h-full">
-                                                <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
-                                            </div>
-                                        ) : editingMember.imageUrl ? (
-                                            <img
-                                                src={editingMember.imageUrl}
-                                                alt="Member"
-                                                className="w-full h-full object-cover"
-                                            />
-                                        ) : (
-                                            <div className="flex flex-col items-center justify-center h-full">
-                                                <Upload className="h-8 w-8 text-gray-400 mb-2" />
-                                                <p className="text-xs text-gray-500">
-                                                    Upload
-                                                </p>
-                                            </div>
-                                        )}
-                                    </div>
-                                    <input
-                                        ref={memberImageInputRef}
-                                        type="file"
-                                        accept="image/*"
-                                        onChange={handleUploadMemberImage}
-                                        className="hidden"
-                                    />
-                                </div>
 
-                                {/* Member Details */}
-                                <div className="md:col-span-2 space-y-4">
-                                    <div className="space-y-2">
-                                        <Label>Name</Label>
-                                        <Input
-                                            value={editingMember.name}
-                                            onChange={(e) =>
-                                                setEditingMember({
-                                                    ...editingMember,
-                                                    name: e.target.value,
-                                                })
-                                            }
-                                            placeholder="Jane Smith"
-                                        />
-                                    </div>
-                                    <div className="space-y-2">
-                                        <Label>Role</Label>
-                                        <Input
-                                            value={editingMember.role}
-                                            onChange={(e) =>
-                                                setEditingMember({
-                                                    ...editingMember,
-                                                    role: e.target.value,
-                                                })
-                                            }
-                                            placeholder="Senior Designer"
-                                        />
-                                    </div>
-                                    <div className="space-y-2">
-                                        <Label>Short Bio</Label>
-                                        <Textarea
-                                            value={editingMember.bio}
-                                            onChange={(e) =>
-                                                setEditingMember({
-                                                    ...editingMember,
-                                                    bio: e.target.value,
-                                                })
-                                            }
-                                            placeholder="Specializes in modern minimalism..."
-                                            rows={3}
-                                        />
-                                    </div>
-                                </div>
-                            </div>
-
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                <div className="space-y-2">
-                                    <Label>LinkedIn (Optional)</Label>
-                                    <Input
-                                        value={editingMember.linkedinUrl || ""}
-                                        onChange={(e) =>
-                                            setEditingMember({
-                                                ...editingMember,
-                                                linkedinUrl: e.target.value,
-                                            })
-                                        }
-                                        placeholder="https://linkedin.com/..."
-                                    />
-                                </div>
-                                <div className="space-y-2">
-                                    <Label>Instagram (Optional)</Label>
-                                    <Input
-                                        value={editingMember.instagramUrl || ""}
-                                        onChange={(e) =>
-                                            setEditingMember({
-                                                ...editingMember,
-                                                instagramUrl: e.target.value,
-                                            })
-                                        }
-                                        placeholder="https://instagram.com/..."
-                                    />
-                                </div>
-                            </div>
-
-                            <div className="flex items-center gap-2">
-                                <input
-                                    type="checkbox"
-                                    id="showOnHome"
-                                    checked={editingMember.showOnHomepage}
-                                    onChange={(e) =>
-                                        setEditingMember({
-                                            ...editingMember,
-                                            showOnHomepage: e.target.checked,
-                                        })
-                                    }
-                                    className="h-4 w-4 rounded border-gray-300 text-black focus:ring-black"
-                                />
-                                <Label htmlFor="showOnHome">Show on Homepage</Label>
-                            </div>
-
-                            <div className="flex gap-2 pt-4">
-                                <Button
-                                    onClick={handleSaveMember}
-                                    className="flex-1 bg-black text-white hover:bg-gray-800"
-                                >
-                                    <Save className="h-4 w-4 mr-2" />
-                                    Save Member
-                                </Button>
-                                <Button
-                                    variant="outline"
-                                    onClick={() => setIsTeamDialogOpen(false)}
-                                    className="flex-1"
-                                >
-                                    Cancel
-                                </Button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            )}
         </div>
     );
 }

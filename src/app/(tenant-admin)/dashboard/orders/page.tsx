@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { Search, Download, Package, FileText, Eye, User, Home, Layers, IndianRupee, X } from "lucide-react";
+import { useState, useEffect } from "react";
+import { ArrowUpDown, Search, Filter, Eye, MoreHorizontal, Download, Trash2, Calendar, FileText, CheckCircle, XCircle, Clock, Activity, Package, X, User, Home, Layers, IndianRupee } from "lucide-react";
 import { useTenantAuth } from "@/hooks/useTenantAuth";
 import { useOrders, Order } from "@/hooks/useOrders";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -22,13 +22,46 @@ import {
     DialogContent,
     DialogClose,
 } from "@/components/ui/dialog";
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "@/components/ui/select";
+import { collection, getDocs } from "firebase/firestore";
+import { db } from "@/lib/firebase";
+
+interface Employee {
+    id: string;
+    name: string;
+}
 
 export default function OrdersPage() {
     const { tenant } = useTenantAuth();
-    const { orders, stats, loading, updateOrderStatus } = useOrders(tenant?.id || null);
+    const { orders, stats, loading, updateOrderStatus, updateOrderDetails } = useOrders(tenant?.id || null);
     const [searchQuery, setSearchQuery] = useState("");
     const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
     const [isDetailsOpen, setIsDetailsOpen] = useState(false);
+    const [employees, setEmployees] = useState<Employee[]>([]);
+
+    useEffect(() => {
+        const fetchEmployees = async () => {
+            if (!tenant?.id) return;
+            try {
+                const employeesRef = collection(db, "tenants", tenant.id, "employees");
+                const snapshot = await getDocs(employeesRef);
+                const empList = snapshot.docs.map(doc => ({
+                    id: doc.id,
+                    name: doc.data().name
+                }));
+                setEmployees(empList);
+            } catch (error) {
+                console.error("Error fetching employees:", error);
+            }
+        };
+        fetchEmployees();
+    }, [tenant?.id]);
 
     const searchLower = searchQuery.toLowerCase();
     const filteredOrders = orders.filter(o =>
@@ -58,6 +91,26 @@ export default function OrdersPage() {
         const success = await updateOrderStatus(orderId, "rejected");
         if (success && selectedOrder?.id === orderId) {
             setSelectedOrder({ ...selectedOrder, status: "rejected" });
+        }
+    };
+
+    const handleAssign = async (employeeId: string) => {
+        if (!selectedOrder) return;
+        const employeeName = employees.find(e => e.id === employeeId)?.name || "Unknown";
+
+        const updates = {
+            assignedTo: employeeId,
+            assignedToName: employeeName,
+            status: "approved" as const // Auto-approve upon assignment if desired, or keep separate
+        };
+
+        const success = await updateOrderDetails(selectedOrder.id, updates);
+
+        if (success) {
+            setSelectedOrder({
+                ...selectedOrder,
+                ...updates
+            });
         }
     };
 
@@ -172,7 +225,7 @@ export default function OrdersPage() {
                             <TableHeader>
                                 <TableRow className="bg-gray-50/50 hover:bg-transparent">
                                     <TableHead className="text-[10px] font-bold text-gray-400 uppercase">Client</TableHead>
-                                    <TableHead className="text-[10px] font-bold text-gray-400 uppercase">City</TableHead>
+                                    <TableHead className="text-[10px] font-bold text-gray-400 uppercase">Allocated To</TableHead>
                                     <TableHead className="text-[10px] font-bold text-gray-400 uppercase">Plan</TableHead>
                                     <TableHead className="text-[10px] font-bold text-gray-400 uppercase">Amount</TableHead>
                                     <TableHead className="text-[10px] font-bold text-gray-400 uppercase">Status</TableHead>
@@ -187,8 +240,17 @@ export default function OrdersPage() {
                                             <div className="font-semibold text-gray-900">{order.customerInfo?.name || order.clientName || "-"}</div>
                                             <div className="text-xs text-gray-500">{order.customerInfo?.phone || order.clientPhone}</div>
                                         </TableCell>
-                                        <TableCell className="text-gray-600">
-                                            {order.customerInfo?.city || "-"}
+                                        <TableCell>
+                                            {order.assignedToName ? (
+                                                <div className="flex items-center gap-1.5">
+                                                    <div className="h-5 w-5 rounded-full bg-emerald-100 flex items-center justify-center text-[10px] font-bold text-emerald-700">
+                                                        {order.assignedToName.charAt(0)}
+                                                    </div>
+                                                    <span className="text-sm text-gray-700">{order.assignedToName}</span>
+                                                </div>
+                                            ) : (
+                                                <span className="text-xs text-gray-400 italic">Unassigned</span>
+                                            )}
                                         </TableCell>
                                         <TableCell>
                                             {order.plan ? <Badge variant="outline">{order.plan}</Badge> : "-"}
@@ -212,7 +274,7 @@ export default function OrdersPage() {
                                                 onClick={() => openDetails(order)}
                                             >
                                                 <Eye className="h-3.5 w-3.5 mr-1" />
-                                                View Details
+                                                View
                                             </Button>
                                         </TableCell>
                                     </TableRow>
@@ -234,11 +296,30 @@ export default function OrdersPage() {
                                     <h2 className="text-lg font-semibold text-gray-900">Estimate Details</h2>
                                     <p className="text-xs text-gray-500">ID: {selectedOrder.id}</p>
                                 </div>
-                                <DialogClose asChild>
-                                    <button className="rounded-full p-1.5 hover:bg-gray-100 transition-colors">
-                                        <X className="h-5 w-5 text-gray-500" />
-                                    </button>
-                                </DialogClose>
+                                <div className="flex items-center gap-3">
+                                    {/* Assignment Dropdown */}
+                                    <div className="w-[200px]">
+                                        <Select
+                                            value={selectedOrder.assignedTo || "unassigned"}
+                                            onValueChange={handleAssign}
+                                        >
+                                            <SelectTrigger className="h-8 text-xs">
+                                                <SelectValue placeholder="Assign Employee" />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                <SelectItem value="unassigned" disabled>Assign to...</SelectItem>
+                                                {employees.map(emp => (
+                                                    <SelectItem key={emp.id} value={emp.id}>{emp.name}</SelectItem>
+                                                ))}
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
+                                    <DialogClose asChild>
+                                        <button className="rounded-full p-1.5 hover:bg-gray-100 transition-colors">
+                                            <X className="h-5 w-5 text-gray-500" />
+                                        </button>
+                                    </DialogClose>
+                                </div>
                             </div>
 
                             {/* Scrollable Content */}
@@ -266,6 +347,60 @@ export default function OrdersPage() {
                                         <div>
                                             <p className="text-xs text-gray-500 uppercase tracking-wide mb-1">City</p>
                                             <p className="text-sm font-medium text-gray-900">{selectedOrder.customerInfo?.city || "-"}</p>
+                                        </div>
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-4 mt-4">
+                                        <div>
+                                            <p className="text-xs font-semibold text-gray-500 uppercase">Assigned To</p>
+                                            <p className="text-sm font-medium text-gray-900 mt-1">{selectedOrder.assignedToName || "-"}</p>
+                                        </div>
+                                        <div>
+                                            <p className="text-xs font-semibold text-gray-500 uppercase">Assignment Status</p>
+                                            <Badge variant="outline" className="mt-1 capitalize">
+                                                {selectedOrder.assignmentStatus || "Pending"}
+                                            </Badge>
+                                        </div>
+                                    </div>
+
+                                    {/* Timeline View for Admin */}
+                                    <div className="mt-6 border-t pt-4">
+                                        <h4 className="font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                                            <Activity className="h-4 w-4 text-gray-500" />
+                                            Tracking History
+                                        </h4>
+                                        <div className="relative pl-4 border-l-2 border-gray-200 space-y-6">
+                                            {/* Initial Creation */}
+                                            <div className="relative">
+                                                <div className="absolute -left-[21px] top-1 h-3 w-3 rounded-full bg-gray-300 border-2 border-white"></div>
+                                                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
+                                                    <p className="text-sm font-medium text-gray-900">Order Created</p>
+                                                    <div className="text-xs text-gray-400">
+                                                        {selectedOrder.createdAt?.toDate ? selectedOrder.createdAt.toDate().toLocaleString() : "-"}
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            {/* Dynamic Timeline */}
+                                            {selectedOrder.timeline?.map((event, idx) => (
+                                                <div key={idx} className="relative">
+                                                    <div className={`absolute -left-[21px] top-1 h-3 w-3 rounded-full border-2 border-white ${event.status === 'completed' || event.status === 'successful' ? 'bg-green-500' : 'bg-blue-500'
+                                                        }`}></div>
+                                                    <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-2">
+                                                        <div>
+                                                            <p className="text-sm font-bold text-gray-900 capitalize">{event.status}</p>
+                                                            <p className="text-xs text-gray-500">Updated by: {event.updatedBy || "Unknown"}</p>
+                                                            {event.note && (
+                                                                <p className="text-xs text-gray-500 mt-1 max-w-sm bg-gray-50 p-2 rounded italic">
+                                                                    "{event.note}"
+                                                                </p>
+                                                            )}
+                                                        </div>
+                                                        <div className="text-xs text-gray-400 whitespace-nowrap">
+                                                            {event.timestamp?.toDate ? event.timestamp.toDate().toLocaleString() : "-"}
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            ))}
                                         </div>
                                     </div>
                                 </div>

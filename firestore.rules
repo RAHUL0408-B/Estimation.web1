@@ -41,6 +41,14 @@ service cloud.firestore {
     }
 
     // ========================================
+    // Collection Group: Employees
+    // ========================================
+    // Allows searching for an employee across ALL tenants (for login)
+    match /{path=**}/employees/{employeeId} {
+      allow read: if true;
+    }
+
+    // ========================================
     // Customers Collection (Legacy)
     // ========================================
     match /customers/{customerId} {
@@ -104,6 +112,14 @@ service cloud.firestore {
         allow read, write: if isTenantOwner(tenantId);
         // Customers/Creators can read their own
         allow read: if isAuthenticated() && resource.data.createdByUserId == request.auth.uid;
+      }
+
+      // Employees Subcollection
+      match /employees/{employeeId} {
+        // Public read allowed for login lookup (collection group query)
+        allow read: if true;
+        // Only tenant owner can manage employees
+        allow write: if isTenantOwner(tenantId);
       }
     }
 

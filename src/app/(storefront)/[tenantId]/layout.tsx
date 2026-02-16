@@ -129,7 +129,7 @@ export default function StorefrontLayout({
                             { name: "Home", href: `/${tenantId}#hero` },
                             { name: "Services", href: `/${tenantId}#services` },
                             { name: "Portfolio", href: `/${tenantId}#portfolio` },
-                            { name: "Testimonials", href: `/${tenantId}#testimonials` },
+
                             { name: "About", href: `/${tenantId}#about` },
                             { name: "Contact", href: `/${tenantId}#contact` },
                             { name: "Get Estimate", href: `/${tenantId}/estimate` },
@@ -183,7 +183,7 @@ export default function StorefrontLayout({
                             { name: "Home", href: `/${tenantId}#hero` },
                             { name: "Services", href: `/${tenantId}#services` },
                             { name: "Portfolio", href: `/${tenantId}#portfolio` },
-                            { name: "Testimonials", href: `/${tenantId}#testimonials` },
+
                             { name: "About", href: `/${tenantId}#about` },
                             { name: "Contact", href: `/${tenantId}#contact` },
                             { name: "Get Estimate", href: `/${tenantId}/estimate` },

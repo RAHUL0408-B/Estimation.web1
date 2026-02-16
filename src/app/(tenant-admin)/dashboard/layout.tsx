@@ -12,7 +12,8 @@ import {
     LogOut,
     Plus,
     Globe,
-    Sliders
+    Sliders,
+    Users
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -26,6 +27,7 @@ const SIDEBAR_ITEMS = [
     { label: "Consultation Requests", href: "/dashboard/consultation-requests", icon: MessageSquare },
     { label: "Pricing & Configuration", href: "/dashboard/pricing", icon: Sliders },
     { label: "Website Setup", href: "/dashboard/website-setup", icon: Globe },
+    { label: "Employees", href: "/dashboard/employees", icon: Users },
     { label: "Settings", href: "/dashboard/settings", icon: Settings },
 ];
 

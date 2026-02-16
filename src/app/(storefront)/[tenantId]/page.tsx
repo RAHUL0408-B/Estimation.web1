@@ -413,18 +413,7 @@ export default function StorefrontPage({ params }: StorefrontPageProps) {
 
                     <TestimonialSlider testimonials={displayTestimonials} accentColor={accentColor} />
 
-                    <div className="text-center mt-12">
-                        <Link href={`/${storeSlug}/testimonials`}>
-                            <Button
-                                size="lg"
-                                variant="outline"
-                                className="rounded-xl border-2 hover:bg-gray-50 transition-all duration-300"
-                                style={{ borderRadius: `${buttonRadius}px` }}
-                            >
-                                View All Testimonials <ArrowRight className="ml-2 h-4 w-4" />
-                            </Button>
-                        </Link>
-                    </div>
+
                 </div>
             </section>
 

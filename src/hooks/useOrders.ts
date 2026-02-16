@@ -35,12 +35,22 @@ export interface Order {
     createdAt?: any;
     tenantId: string;
     pdfUrl?: string;
+    assignedTo?: string;
+    assignedToName?: string;
+    assignmentStatus?: "pending" | "accepted" | "completed";
 
     // Legacy Fields (kept for compatibility if needed, though we are switching source)
     clientName?: string;
     clientPhone?: string;
     clientEmail?: string;
     estimatedAmount?: number;
+    numberOfRooms?: number;
+    timeline?: Array<{
+        status: string;
+        timestamp: any;
+        updatedBy?: string;
+        note?: string;
+    }>;
 }
 
 export function useOrders(tenantId: string | null, storeId?: string | null) {
