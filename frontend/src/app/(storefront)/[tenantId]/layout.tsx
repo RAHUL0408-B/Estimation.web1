@@ -1,10 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { Menu, Phone, X } from "lucide-react";
+import { Menu, Phone, X, User, LogOut, LayoutDashboard } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useState, useEffect, use } from "react";
 import { usePublicWebsiteConfig } from "@/hooks/useWebsiteConfig";
+import { StorefrontAuthDialog } from "@/components/storefront/StorefrontAuthDialog";
+
+import { useSearchParams, useRouter } from "next/navigation";
 
 export default function StorefrontLayout({
     children,
@@ -14,11 +17,51 @@ export default function StorefrontLayout({
     params: Promise<{ tenantId: string }>;
 }) {
     const { tenantId } = use(params);
+    const searchParams = useSearchParams();
 
     const { config, loading } = usePublicWebsiteConfig(tenantId);
 
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
     const [scrolled, setScrolled] = useState(false);
+    const [authOpen, setAuthOpen] = useState(false);
+    const [authTab, setAuthTab] = useState<"login" | "signup">("login");
+    const router = useRouter();
+    const [user, setUser] = useState<{ email: string; name: string } | null>(null);
+
+    useEffect(() => {
+        const checkUser = () => {
+            const stored = localStorage.getItem(`storefront_user_${tenantId}`);
+            if (stored) {
+                try {
+                    setUser(JSON.parse(stored));
+                } catch (e) { setUser(null); }
+            } else {
+                setUser(null);
+            }
+        };
+        checkUser();
+        window.addEventListener("storage", checkUser);
+        return () => window.removeEventListener("storage", checkUser);
+    }, [tenantId]);
+
+    const handleLogout = () => {
+        localStorage.removeItem(`storefront_user_${tenantId}`);
+        setUser(null);
+        window.dispatchEvent(new Event("storage"));
+        router.push(`/${tenantId}`);
+    };
+
+    useEffect(() => {
+        if (searchParams.get("openAuth") === "true") {
+            setAuthOpen(true);
+        }
+    }, [searchParams]);
+
+    const openAuth = (tab: "login" | "signup") => {
+        setAuthTab(tab);
+        setAuthOpen(true);
+        setMobileMenuOpen(false);
+    };
 
     useEffect(() => {
         const handleScroll = () => {
@@ -162,6 +205,29 @@ export default function StorefrontLayout({
                         >
                             {mobileMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
                         </Button>
+                        {user ? (
+                            <div className="hidden md:flex items-center gap-2">
+                                <Link href={`/${tenantId}/dashboard`}>
+                                    <Button variant="ghost" className="text-gray-600 hover:text-indigo-600">
+                                        <LayoutDashboard className="h-4 w-4 mr-2" />
+                                        My Dashboard
+                                    </Button>
+                                </Link>
+                                <Button variant="ghost" onClick={handleLogout} className="text-gray-600 hover:text-red-600">
+                                    <LogOut className="h-4 w-4 mr-2" />
+                                </Button>
+                            </div>
+                        ) : (
+                            <div className="hidden md:flex items-center gap-2">
+                                <Button
+                                    variant="ghost"
+                                    onClick={() => openAuth("login")}
+                                    className="text-gray-600 hover:text-indigo-600 hover:bg-gray-50"
+                                >
+                                    Login / Sign Up
+                                </Button>
+                            </div>
+                        )}
                         <Link href={`/${tenantId}/book-consultation`}>
                             <Button
                                 className="hidden md:flex text-white rounded-lg px-6 transition-all duration-300 hover:scale-105 hover:shadow-lg"
@@ -197,6 +263,46 @@ export default function StorefrontLayout({
                                 {link.name}
                             </Link>
                         ))}
+
+                        {user ? (
+                            <div className="flex flex-col gap-3 mt-4 border-t border-gray-100 pt-4">
+                                <div className="text-sm font-medium text-gray-500 px-4 flex items-center gap-2">
+                                    <User className="h-4 w-4" />
+                                    {user.name}
+                                </div>
+                                <Link href={`/${tenantId}/dashboard`} onClick={() => setMobileMenuOpen(false)}>
+                                    <Button variant="ghost" className="w-full justify-start text-lg font-medium text-gray-800 hover:text-indigo-600">
+                                        <LayoutDashboard className="h-5 w-5 mr-3" />
+                                        My Dashboard
+                                    </Button>
+                                </Link>
+                                <Button
+                                    variant="ghost"
+                                    onClick={() => { handleLogout(); setMobileMenuOpen(false); }}
+                                    className="w-full justify-start text-lg font-medium text-red-600 hover:text-red-700 hover:bg-red-50"
+                                >
+                                    <LogOut className="h-5 w-5 mr-3" />
+                                    Logout
+                                </Button>
+                            </div>
+                        ) : (
+                            <div className="flex flex-col gap-3 mt-4 border-t border-gray-100 pt-4">
+                                <Button
+                                    variant="ghost"
+                                    onClick={() => openAuth("login")}
+                                    className="w-full justify-start text-lg font-medium text-gray-800 hover:text-indigo-600"
+                                >
+                                    Log In
+                                </Button>
+                                <Button
+                                    variant="ghost"
+                                    onClick={() => openAuth("signup")}
+                                    className="w-full justify-start text-lg font-medium text-gray-800 hover:text-indigo-600"
+                                >
+                                    Sign Up
+                                </Button>
+                            </div>
+                        )}
                         <div className="flex flex-col gap-3 mt-4">
                             <Link href={`/${tenantId}/estimate`} onClick={() => setMobileMenuOpen(false)}>
                                 <Button className="w-full rounded-full bg-gray-900 text-white h-12 text-lg">
@@ -296,7 +402,15 @@ export default function StorefrontLayout({
                         <a href="#" className="hover:text-white transition-colors">Terms of Service</a>
                     </div>
                 </div>
-            </footer>
-        </div>
+
+            </footer >
+
+            <StorefrontAuthDialog
+                open={authOpen}
+                onOpenChange={setAuthOpen}
+                defaultTab={authTab}
+                tenantId={tenantId}
+            />
+        </div >
     );
 }

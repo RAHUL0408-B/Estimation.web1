@@ -72,7 +72,9 @@ export default function TenantLoginPage() {
                 const data = doc.data();
                 if (data.password === password) {
                     inputsValid = true;
-                    employeeData = { id: doc.id, ...data };
+                    // Ensure tenantId is available (fallback to path extraction for older records)
+                    const tenantId = data.tenantId || doc.ref.parent.parent?.id;
+                    employeeData = { id: doc.id, ...data, tenantId };
                 }
             });
 

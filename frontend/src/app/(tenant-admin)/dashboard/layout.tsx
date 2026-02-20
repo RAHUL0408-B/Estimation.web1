@@ -13,7 +13,8 @@ import {
     Plus,
     Globe,
     Sliders,
-    Users
+    Users,
+    Briefcase
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -23,11 +24,13 @@ import { useBrand } from "@/hooks/useWebsiteBuilder";
 
 const SIDEBAR_ITEMS = [
     { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
+    { label: "Projects", href: "/dashboard/projects", icon: Briefcase },
     { label: "Orders", href: "/dashboard/orders", icon: ShoppingBag },
+    { label: "Customers", href: "/dashboard/customers", icon: Users },
     { label: "Consultation Requests", href: "/dashboard/consultation-requests", icon: MessageSquare },
     { label: "Pricing & Configuration", href: "/dashboard/pricing", icon: Sliders },
     { label: "Website Setup", href: "/dashboard/website-setup", icon: Globe },
-    { label: "Employees", href: "/dashboard/employees", icon: Users },
+    { label: "Employees", href: "/dashboard/employees", icon: Users }, // Changed icon to avoid duplicate Briefcase if desired, or keep as is
     { label: "Settings", href: "/dashboard/settings", icon: Settings },
 ];
 

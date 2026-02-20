@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { db } from "@/lib/firebase";
-import { doc, onSnapshot, getDoc, collection, query, where, Timestamp, updateDoc, arrayUnion } from "firebase/firestore";
+import { doc, onSnapshot, getDoc, collection, query, where, Timestamp, updateDoc, arrayUnion, writeBatch, serverTimestamp } from "firebase/firestore";
 import { Loader2, LogOut, Briefcase, Phone, MapPin, User, CheckCircle, Clock, FileText, MessageSquare, Calendar, ChevronRight, Activity, ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
@@ -25,6 +25,7 @@ import {
     SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { Input } from "@/components/ui/input";
 
 interface EmployeeData {
     id: string;
@@ -53,6 +54,7 @@ interface AssignedOrder {
     totalAmount?: number;
     estimatedAmount?: number;
     status: string;
+    assignedTo?: string;
     createdAt: any;
     timeline?: Array<{ status: string; timestamp: any; note?: string }>;
 }
@@ -68,6 +70,8 @@ interface AssignedRequest {
     timeline?: Array<{ status: string; timestamp: any; note?: string }>;
 }
 
+
+
 export default function EmployeeDashboard() {
     const router = useRouter();
     const [employee, setEmployee] = useState<EmployeeData | null>(null);
@@ -76,6 +80,7 @@ export default function EmployeeDashboard() {
     const [orders, setOrders] = useState<AssignedOrder[]>([]);
     const [requests, setRequests] = useState<AssignedRequest[]>([]);
 
+
     // Status Update State
     const [selectedItem, setSelectedItem] = useState<any>(null);
     const [updateType, setUpdateType] = useState<'order' | 'request'>('order');
@@ -83,6 +88,9 @@ export default function EmployeeDashboard() {
     const [statusNote, setStatusNote] = useState("");
     const [isUpdating, setIsUpdating] = useState(false);
     const [isDialogOpen, setIsDialogOpen] = useState(false);
+
+    // Conversion State
+
 
     useEffect(() => {
         // 1. Get Session
@@ -113,15 +121,25 @@ export default function EmployeeDashboard() {
         });
 
         // 3. Listen to Assigned Orders
+        // FETCH ALL (Client-side filter) to debug/avoid index issues
         const ordersQuery = query(
-            collection(db, "tenants", tenantId, "estimates"),
-            where("assignedTo", "==", id)
+            collection(db, "tenants", tenantId, "estimates")
         );
         const unsubOrders = onSnapshot(ordersQuery, (snapshot) => {
-            const ords = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as AssignedOrder));
+            const allOrds = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as AssignedOrder));
+
+            // Log for debugging
+            console.log(`[DEBUG] Fetched ${allOrds.length} estimates for tenant ${tenantId}`);
+            allOrds.forEach(o => console.log(` - Order ${o.id}: assignedTo=${o.assignedTo}, myId=${id}`));
+
+            const myOrds = allOrds.filter(o => o.assignedTo === id);
+
             // Sort by Date Desc
-            ords.sort((a, b) => (b.createdAt?.toMillis?.() || 0) - (a.createdAt?.toMillis?.() || 0));
-            setOrders(ords);
+            myOrds.sort((a, b) => (b.createdAt?.toMillis?.() || 0) - (a.createdAt?.toMillis?.() || 0));
+            setOrders(myOrds);
+        }, (error) => {
+            console.error("Error fetching orders:", error);
+            alert(`Error fetching orders: ${error.message}`);
         });
 
         // 4. Listen to Assigned Requests
@@ -139,7 +157,12 @@ export default function EmployeeDashboard() {
             // Sort by date
             myReqs.sort((a, b) => (b.createdAt?.toMillis?.() || 0) - (a.createdAt?.toMillis?.() || 0));
             setRequests(myReqs);
+        }, (error) => {
+            console.error("Error fetching requests:", error);
+            alert(`Error fetching requests: ${error.message}`);
         });
+
+
 
         // 5. Fetch Designer Info
         const fetchDesigner = async () => {
@@ -160,6 +183,7 @@ export default function EmployeeDashboard() {
         return () => {
             unsubEmployee();
             unsubOrders();
+            unsubRequests();
             unsubRequests();
         };
     }, [router]);
@@ -233,9 +257,13 @@ export default function EmployeeDashboard() {
         }
     };
 
+
+
     const openUpdateDialog = (item: any, type: 'order' | 'request') => {
         setSelectedItem(item);
         setUpdateType(type);
+        setNewStatus(item.status);
+        // If it's a lead, status might be e.g. "site_visit".
         setNewStatus(item.status);
         setStatusNote("");
         setIsDialogOpen(true);
@@ -280,6 +308,14 @@ export default function EmployeeDashboard() {
                     </Button>
                 </div>
             </header>
+
+            {/* DEBUG INFO - TEMPORARY */}
+            <div className="bg-yellow-50 border-b border-yellow-200 p-2 text-xs font-mono text-yellow-800">
+                <div className="max-w-7xl mx-auto flex flex-wrap gap-4">
+                    <span><strong>Tenant ID:</strong> {employee.tenantId}</span>
+                    <span><strong>Employee ID:</strong> {employee.id}</span>
+                </div>
+            </div>
 
             <main className="flex-1 max-w-7xl mx-auto w-full p-4 lg:p-8 space-y-8">
 
@@ -519,7 +555,6 @@ export default function EmployeeDashboard() {
                 </div>
             </main>
 
-            {/* Status Update Dialog */}
             <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
                 <DialogContent>
                     <DialogHeader>

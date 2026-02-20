@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { db } from "@/lib/firebase";
-import { collection, query, where, onSnapshot, doc, updateDoc, orderBy } from "firebase/firestore";
+import { collection, query, where, onSnapshot, doc, updateDoc, orderBy, arrayUnion, Timestamp } from "firebase/firestore";
 
 export interface Order {
     id: string;
@@ -122,7 +122,15 @@ export function useOrders(tenantId: string | null, storeId?: string | null) {
         if (!tenantId) return false;
         try {
             const orderRef = doc(db, `tenants/${tenantId}/estimates`, orderId);
-            await updateDoc(orderRef, { status });
+            await updateDoc(orderRef, {
+                status,
+                timeline: arrayUnion({
+                    status,
+                    timestamp: Timestamp.now(),
+                    updatedBy: "Admin", // Ideally getting real admin name from auth context if available
+                    note: `Order status updated to ${status}`
+                })
+            });
             return true;
         } catch (error) {
             console.error("Error updating order status:", error);
@@ -134,8 +142,20 @@ export function useOrders(tenantId: string | null, storeId?: string | null) {
         if (!tenantId) return false;
         try {
             const orderRef = doc(db, `tenants/${tenantId}/estimates`, orderId);
-            // We need to be careful with nested updates. For now assuming shallow updates or properly structured
-            await updateDoc(orderRef, updates);
+
+            const finalUpdates: any = { ...updates };
+
+            // If we are assigning, add a timeline event
+            if (updates.assignedTo) {
+                finalUpdates.timeline = arrayUnion({
+                    status: "assigned",
+                    timestamp: Timestamp.now(),
+                    updatedBy: "Admin",
+                    note: `Order assigned to ${updates.assignedToName || "Employee"}`
+                });
+            }
+
+            await updateDoc(orderRef, finalUpdates);
             return true;
         } catch (error) {
             console.error("Error updating order details:", error);

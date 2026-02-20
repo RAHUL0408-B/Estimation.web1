@@ -403,6 +403,21 @@ export default function EstimatorPage({ params }: { params: Promise<{ tenantId: 
         return { total, breakdown };
     };
 
+    // Check local storage for simulated user
+    const [simulatedUser, setSimulatedUser] = useState<{ email: string; name: string } | null>(null);
+    useEffect(() => {
+        if (tenantSlug) {
+            const stored = localStorage.getItem(`storefront_user_${tenantSlug}`);
+            if (stored) {
+                try {
+                    setSimulatedUser(JSON.parse(stored));
+                } catch (e) {
+                    console.error("Failed to parse stored user", e);
+                }
+            }
+        }
+    }, [tenantSlug]);
+
     const handleSubmit = async () => {
         // Validation
         if (!customerName || !customerPhone || !customerEmail || !selectedCity) {
@@ -414,8 +429,8 @@ export default function EstimatorPage({ params }: { params: Promise<{ tenantId: 
             return;
         }
 
-        // Check if user is authenticated
-        if (!customer && !isAdmin) {
+        // Check if user is authenticated (Firebase Auth OR Simulated LocalAuth)
+        if (!customer && !isAdmin && !simulatedUser) {
             // User is not logged in - save form data to sessionStorage
             const formData = {
                 customerInfo: {
@@ -447,13 +462,22 @@ export default function EstimatorPage({ params }: { params: Promise<{ tenantId: 
             // Save to sessionStorage
             sessionStorage.setItem('pendingEstimate', JSON.stringify(formData));
 
-            // Redirect to login with return URL
-            router.push(`/${tenantSlug}/login?redirect=/${tenantSlug}/estimate&autoSubmit=true`);
+            // Redirect to dashboard (which handles auth if not logged in) or open auth dialog
+            // Since we can't easily open the dialog from here without context, and we don't have a dedicated login page,
+            // we will redirect to the dashboard which will prompt for login or show the user dashboard.
+            // A better UX would be to emit an event to open the dialog, but for now:
+            const currentUrl = window.location.pathname;
+            // We can encode the return URL to handle post-login redirection if we improve the auth flow later
+            router.push(`/${tenantSlug}?openAuth=true&returnUrl=${encodeURIComponent(currentUrl)}`);
             return;
         }
 
+        // Auto-fill customer info from simulated user if not provided (though form validation ensures it is)
+        // We can also ensure the email matches the logged in user if we wanted to be strict.
+
         // User is logged in - proceed with submission
         setIsSubmitting(true);
+
 
         try {
             const { total, breakdown } = calculateEstimate();
