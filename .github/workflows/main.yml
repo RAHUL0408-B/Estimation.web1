@@ -1,0 +1,52 @@
+name: Deploy Next.js to Hostingial
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install Dependencies
+        run: |
+          cd frontend
+          npm install
+
+      - name: Build Project
+        run: |
+          cd frontend
+          npm run build
+
+      - name: Prepare Deployment Files
+        run: |
+          mkdir deploy_package
+          cp -r frontend/.next deploy_package/
+          cp -r frontend/public deploy_package/
+          cp frontend/package.json deploy_package/
+          cp frontend/next.config.ts deploy_package/
+          cp frontend/server.js deploy_package/
+
+      - name: Deploy to Server via FTP
+        uses: SamKirkland/FTP-Deploy-Action@v4.3.5
+        with:
+          server: ${{ secrets.FTP_SERVER }}
+          username: ${{ secrets.FTP_USERNAME }}
+          password: ${{ secrets.FTP_PASSWORD }}
+          local-dir: ./deploy_package/
+          server-dir: repositories/Estimation.webb/frontend/ # Make sure this matches your actual path on server
+          exclude: |
+            **/.git*
+            **/node_modules/**
