@@ -28,7 +28,7 @@ try {
         db = getFirestore(app);
         storage = getStorage(app);
 
-        if (typeof window !== "undefined") {
+        if (typeof window !== "undefined" && auth) {
             // Set auth persistence to local storage (persists even after browser close)
             setPersistence(auth, browserLocalPersistence).catch((error) => {
                 console.error("Error setting auth persistence:", error);

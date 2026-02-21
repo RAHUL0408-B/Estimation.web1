@@ -143,7 +143,17 @@ export function useTenantAuth() {
             return true;
         } catch (err: any) {
             console.error("Login error:", err);
-            setError("Invalid email or password");
+            let message = "Invalid email or password";
+            if (err.code === "auth/configuration-not-found") {
+                message = "Firebase Auth not configured correctly.";
+            } else if (err.code === "auth/unauthorized-domain") {
+                message = "This domain is not authorized in Firebase Console.";
+            } else if (err.message && err.message.includes("reading 'app'")) {
+                message = "Firebase initialization failed. Check environment variables.";
+            } else if (err.message) {
+                message = `Error: ${err.message}`;
+            }
+            setError(message);
             setLoading(false);
             return false;
         }
