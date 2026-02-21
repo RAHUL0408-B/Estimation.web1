@@ -22,26 +22,25 @@ let storage: FirebaseStorage | any = null;
 let analytics: Analytics | undefined;
 
 try {
-    if (firebaseConfig.apiKey) {
+    const missingKeys = Object.entries(firebaseConfig)
+        .filter(([key, value]) => !value && key !== 'measurementId')
+        .map(([key]) => key);
+
+    if (missingKeys.length === 0) {
         app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
         auth = getAuth(app);
         db = getFirestore(app);
         storage = getStorage(app);
 
         if (typeof window !== "undefined" && auth) {
-            // Set auth persistence to local storage (persists even after browser close)
-            setPersistence(auth, browserLocalPersistence).catch((error) => {
-                console.error("Error setting auth persistence:", error);
-            });
-
+            setPersistence(auth, browserLocalPersistence).catch((e) => console.error("Persistence error:", e));
             isSupported().then((supported) => {
-                if (supported && app) {
-                    analytics = getAnalytics(app);
-                }
+                if (supported && app) analytics = getAnalytics(app);
             });
         }
     } else {
-        console.warn("Firebase API Key is missing. Check your environment variables (NEXT_PUBLIC_FIREBASE_API_KEY).");
+        console.warn(`Firebase initialization skipped. Missing environment variables: ${missingKeys.join(", ")}`);
+        console.warn("Ensure variables starting with NEXT_PUBLIC_ are set in your deployment dashboard.");
     }
 } catch (error) {
     console.error("Firebase initialization error:", error);
