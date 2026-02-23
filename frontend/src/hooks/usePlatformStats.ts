@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { db } from "@/lib/firebase";
-import { collection, onSnapshot, Timestamp } from "firebase/firestore";
+import { collection, onSnapshot, Timestamp } from "@/lib/firebaseWrapper";
 import { Tenant, calculateGrowthRate } from "@/lib/firestoreHelpers";
 
 export interface PlatformStats {

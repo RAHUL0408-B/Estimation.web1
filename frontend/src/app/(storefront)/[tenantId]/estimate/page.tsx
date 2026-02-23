@@ -14,7 +14,7 @@ import { useCities } from "@/hooks/useCities";
 import { useCustomerAuth } from "@/hooks/useCustomerAuth";
 import { usePublicWebsiteConfig } from "@/hooks/useWebsiteConfig";
 import { db } from "@/lib/firebase";
-import { collection, addDoc, serverTimestamp } from "firebase/firestore";
+import { collection, addDoc, serverTimestamp } from "@/lib/firebaseWrapper";
 import { getTenantByStoreId, Tenant } from "@/lib/firestoreHelpers";
 import { generateEstimatePDF } from "@/lib/generateEstimatePdf";
 

@@ -14,8 +14,8 @@ import {
     query,
     orderBy,
     getDocs,
-} from "firebase/firestore";
-import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
+} from "@/lib/firebaseWrapper";
+import { ref, uploadBytes, getDownloadURL } from "@/lib/firebaseWrapper";
 import type {
     BrandConfig,
     ThemeConfig,

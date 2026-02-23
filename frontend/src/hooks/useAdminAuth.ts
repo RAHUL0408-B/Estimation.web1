@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { auth } from "@/lib/firebase";
-import { signInWithEmailAndPassword, signOut, onAuthStateChanged, User } from "firebase/auth";
+import { signInWithEmailAndPassword, signOut, onAuthStateChanged, User } from "@/lib/firebaseWrapper";
 import { useRouter } from "next/navigation";
 import { getTenantByEmail } from "@/lib/firestoreHelpers";
 

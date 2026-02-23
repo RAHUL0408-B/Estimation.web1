@@ -3,7 +3,7 @@
 import { use, useEffect, useState } from "react";
 import { Loader2, Award, Target, Eye } from "lucide-react";
 import { db } from "@/lib/firebase";
-import { doc, getDoc, collection, getDocs, query, orderBy } from "firebase/firestore";
+import { doc, getDoc, collection, getDocs, query, orderBy } from "@/lib/firebaseWrapper";
 import { getTenantByStoreId } from "@/lib/firestoreHelpers";
 import type { AboutUsContent, ThemeConfig, TeamMember } from "@/types/website";
 

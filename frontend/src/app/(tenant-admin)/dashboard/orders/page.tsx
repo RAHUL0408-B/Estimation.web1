@@ -29,7 +29,7 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/select";
-import { collection, getDocs } from "firebase/firestore";
+import { collection, getDocs } from "@/lib/firebaseWrapper";
 import { db } from "@/lib/firebase";
 
 interface Employee {

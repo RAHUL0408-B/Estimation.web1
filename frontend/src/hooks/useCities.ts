@@ -12,7 +12,7 @@ import {
     query,
     orderBy,
     serverTimestamp,
-} from "firebase/firestore";
+} from "@/lib/firebaseWrapper";
 
 export interface City {
     id: string;

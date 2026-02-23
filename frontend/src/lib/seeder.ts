@@ -1,6 +1,6 @@
 
 import { db } from "@/lib/firebase";
-import { collection, getDocs, addDoc, serverTimestamp, query, limit } from "firebase/firestore";
+import { collection, getDocs, addDoc, serverTimestamp, query, limit } from "@/lib/firebaseWrapper";
 
 const SAMPLE_PROJECTS = [
     {

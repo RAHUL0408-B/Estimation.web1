@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Briefcase, User, Search, CheckCircle2 } from "lucide-react";
-import { collection, query, where, getDocs, addDoc, serverTimestamp } from "firebase/firestore";
+import { collection, query, where, getDocs, addDoc, serverTimestamp } from "@/lib/firebaseWrapper";
 import { db } from "@/lib/firebase";
 import { useToast } from "@/hooks/use-toast";
 

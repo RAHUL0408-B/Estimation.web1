@@ -13,7 +13,7 @@ import { cn } from "@/lib/utils";
 
 export default function CitiesPage() {
     const { tenant } = useTenantAuth();
-    const { cities, loading, addCity, deleteCity, toggleCity, updateCities } = useCities(tenant?.id || null);
+    const { cities, loading, addCity, deleteCity, toggleCity, updateCity } = useCities(tenant?.id || null);
     const [showAddDialog, setShowAddDialog] = useState(false);
     const [newCityName, setNewCityName] = useState("");
     const [editingCityId, setEditingCityId] = useState<string | null>(null);
@@ -37,15 +37,12 @@ export default function CitiesPage() {
         await deleteCity(cityId);
     };
 
-    const handleToggleCity = async (cityId: string) => {
-        await toggleCity(cityId);
+    const handleToggleCity = async (cityId: string, enabled: boolean) => {
+        await toggleCity(cityId, enabled);
     };
 
     const handleUpdateCityName = async (cityId: string, newName: string) => {
-        const updatedCities = cities.map(c =>
-            c.id === cityId ? { ...c, name: newName } : c
-        );
-        await updateCities(updatedCities);
+        await updateCity(cityId, { name: newName });
         setEditingCityId(null);
     };
 
@@ -114,7 +111,7 @@ export default function CitiesPage() {
                                                 {city.enabled ? "Enabled" : "Disabled"}
                                             </span>
                                             <button
-                                                onClick={() => handleToggleCity(city.id)}
+                                                onClick={() => handleToggleCity(city.id, city.enabled)}
                                                 className={cn(
                                                     "relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors",
                                                     city.enabled ? "bg-[#0F172A]" : "bg-gray-200"

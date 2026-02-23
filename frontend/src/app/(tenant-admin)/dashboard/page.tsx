@@ -42,7 +42,7 @@ import {
     DialogContent,
     DialogClose,
 } from "@/components/ui/dialog";
-import { doc, updateDoc } from "firebase/firestore";
+import { doc, updateDoc } from "@/lib/firebaseWrapper";
 import { db } from "@/lib/firebase";
 
 import { generateSampleData } from "@/lib/sampleData";

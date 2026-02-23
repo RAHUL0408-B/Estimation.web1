@@ -11,8 +11,8 @@ import {
     sendPasswordResetEmail,
     onAuthStateChanged,
     User
-} from "firebase/auth";
-import { doc, getDoc, setDoc, serverTimestamp } from "firebase/firestore";
+} from "@/lib/firebaseWrapper";
+import { doc, getDoc, setDoc, serverTimestamp } from "@/lib/firebaseWrapper";
 
 export interface Customer {
     uid: string;

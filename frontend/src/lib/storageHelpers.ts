@@ -1,5 +1,5 @@
 import { storage } from "./firebase";
-import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
+import { ref, uploadBytes, getDownloadURL } from "@/lib/firebaseWrapper";
 
 /**
  * Uploads a file to Firebase Storage and returns the download URL

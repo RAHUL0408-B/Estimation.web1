@@ -1,0 +1,110 @@
+src/app/(storefront)/[tenantId]/about/page.tsx(48,60): error TS7006: Parameter 'doc' implicitly has an 'any' type.
+src/app/(storefront)/[tenantId]/page.tsx(78,98): error TS7006: Parameter 'doc' implicitly has an 'any' type.
+src/app/(storefront)/[tenantId]/page.tsx(86,98): error TS7006: Parameter 'doc' implicitly has an 'any' type.
+src/app/(storefront)/[tenantId]/page.tsx(94,95): error TS7006: Parameter 'doc' implicitly has an 'any' type.
+src/app/(storefront)/[tenantId]/page.tsx(106,68): error TS7006: Parameter 'snapshot' implicitly has an 'any' type.
+src/app/(storefront)/[tenantId]/page.tsx(108,30): error TS7006: Parameter 'doc' implicitly has an 'any' type.
+src/app/(storefront)/[tenantId]/page.tsx(112,33): error TS7006: Parameter 'p' implicitly has an 'any' type.
+src/app/(storefront)/[tenantId]/page.tsx(115,21): error TS7006: Parameter 'error' implicitly has an 'any' type.
+src/app/(storefront)/[tenantId]/page.tsx(125,74): error TS7006: Parameter 'snapshot' implicitly has an 'any' type.
+src/app/(storefront)/[tenantId]/page.tsx(127,30): error TS7006: Parameter 'doc' implicitly has an 'any' type.
+src/app/(storefront)/[tenantId]/page.tsx(131,33): error TS7006: Parameter 't' implicitly has an 'any' type.
+src/app/(storefront)/[tenantId]/page.tsx(134,21): error TS7006: Parameter 'error' implicitly has an 'any' type.
+src/app/(storefront)/[tenantId]/page.tsx(140,101): error TS7006: Parameter 'doc' implicitly has an 'any' type.
+src/app/(storefront)/[tenantId]/portfolio/page.tsx(38,102): error TS7006: Parameter 'doc' implicitly has an 'any' type.
+src/app/(storefront)/[tenantId]/portfolio/page.tsx(48,58): error TS7006: Parameter 'snapshot' implicitly has an 'any' type.
+src/app/(storefront)/[tenantId]/portfolio/page.tsx(49,65): error TS7006: Parameter 'doc' implicitly has an 'any' type.
+src/app/(storefront)/[tenantId]/testimonials/page.tsx(36,102): error TS7006: Parameter 'doc' implicitly has an 'any' type.
+src/app/(storefront)/[tenantId]/testimonials/page.tsx(46,62): error TS7006: Parameter 'snapshot' implicitly has an 'any' type.
+src/app/(storefront)/[tenantId]/testimonials/page.tsx(47,69): error TS7006: Parameter 'doc' implicitly has an 'any' type.
+src/app/(tenant-admin)/dashboard/consultation-requests/page.tsx(45,51): error TS7006: Parameter 'doc' implicitly has an 'any' type.
+src/app/(tenant-admin)/dashboard/employees/page.tsx(82,44): error TS7006: Parameter 'snapshot' implicitly has an 'any' type.
+src/app/(tenant-admin)/dashboard/employees/page.tsx(83,47): error TS7006: Parameter 'doc' implicitly has an 'any' type.
+src/app/(tenant-admin)/dashboard/employees/page.tsx(89,13): error TS7006: Parameter 'error' implicitly has an 'any' type.
+src/app/(tenant-admin)/dashboard/orders/page.tsx(54,51): error TS7006: Parameter 'doc' implicitly has an 'any' type.
+src/app/(tenant-admin)/dashboard/settings/cities/page.tsx(16,63): error TS2339: Property 'updateCities' does not exist on type '{ cities: City[]; loading: boolean; saving: boolean; addCity: (name: string) => Promise<boolean>; updateCity: (id: string, updates: Partial<City>) => Promise<boolean>; deleteCity: (id: string) => Promise<...>; toggleCity: (id: string, currentStatus: boolean) => Promise<...>; }'.
+src/app/(tenant-admin)/dashboard/settings/cities/page.tsx(41,15): error TS2554: Expected 2 arguments, but got 1.
+src/app/(tenant-admin)/login/page.tsx(71,36): error TS7006: Parameter 'doc' implicitly has an 'any' type.
+src/app/api/upload/route.ts(37,69): error TS2554: Expected 2 arguments, but got 3.
+src/app/employee-dashboard/page.tsx(114,90): error TS7006: Parameter 'docSnap' implicitly has an 'any' type.
+src/app/employee-dashboard/page.tsx(128,54): error TS7006: Parameter 'snapshot' implicitly has an 'any' type.
+src/app/employee-dashboard/page.tsx(129,47): error TS7006: Parameter 'doc' implicitly has an 'any' type.
+src/app/employee-dashboard/page.tsx(133,29): error TS7006: Parameter 'o' implicitly has an 'any' type.
+src/app/employee-dashboard/page.tsx(135,43): error TS7006: Parameter 'o' implicitly has an 'any' type.
+src/app/employee-dashboard/page.tsx(138,26): error TS7006: Parameter 'a' implicitly has an 'any' type.
+src/app/employee-dashboard/page.tsx(138,29): error TS7006: Parameter 'b' implicitly has an 'any' type.
+src/app/employee-dashboard/page.tsx(140,13): error TS7006: Parameter 'error' implicitly has an 'any' type.
+src/app/employee-dashboard/page.tsx(152,58): error TS7006: Parameter 'snapshot' implicitly has an 'any' type.
+src/app/employee-dashboard/page.tsx(153,47): error TS7006: Parameter 'doc' implicitly has an 'any' type.
+src/app/employee-dashboard/page.tsx(155,43): error TS7006: Parameter 'r' implicitly has an 'any' type.
+src/app/employee-dashboard/page.tsx(158,26): error TS7006: Parameter 'a' implicitly has an 'any' type.
+src/app/employee-dashboard/page.tsx(158,29): error TS7006: Parameter 'b' implicitly has an 'any' type.
+src/app/employee-dashboard/page.tsx(160,13): error TS7006: Parameter 'error' implicitly has an 'any' type.
+src/components/AddCompanyDialog.tsx(17,10): error TS2305: Module '"@/lib/firebase"' has no exported member 'firebaseConfig'.
+src/components/AddCompanyDialog.tsx(83,66): error TS2554: Expected 1 arguments, but got 2.
+src/hooks/useAdminAuth.ts(15,61): error TS7006: Parameter 'firebaseUser' implicitly has an 'any' type.
+src/hooks/useCities.ts(41,14): error TS7006: Parameter 'snapshot' implicitly has an 'any' type.
+src/hooks/useCities.ts(42,53): error TS7006: Parameter 'doc' implicitly has an 'any' type.
+src/hooks/useCities.ts(49,14): error TS7006: Parameter 'error' implicitly has an 'any' type.
+src/hooks/useCompanies.ts(18,44): error TS7006: Parameter 'snapshot' implicitly has an 'any' type.
+src/hooks/useCompanies.ts(21,31): error TS7006: Parameter 'doc' implicitly has an 'any' type.
+src/hooks/useConsultations.ts(48,14): error TS7006: Parameter 'snapshot' implicitly has an 'any' type.
+src/hooks/useConsultations.ts(49,56): error TS7006: Parameter 'doc' implicitly has an 'any' type.
+src/hooks/useConsultations.ts(76,14): error TS7006: Parameter 'error' implicitly has an 'any' type.
+src/hooks/useCustomerAuth.ts(40,61): error TS7006: Parameter 'user' implicitly has an 'any' type.
+src/hooks/useCustomerAuth.ts(165,28): error TS2339: Property 'displayName' does not exist on type '{ uid: string; email: string; }'.
+src/hooks/useCustomerAuth.ts(177,35): error TS2339: Property 'displayName' does not exist on type '{ uid: string; email: string; }'.
+src/hooks/useCustomerAuth.ts(180,32): error TS2339: Property 'photoURL' does not exist on type '{ uid: string; email: string; }'.
+src/hooks/useEstimates.ts(37,44): error TS7006: Parameter 'snapshot' implicitly has an 'any' type.
+src/hooks/useEstimates.ts(38,53): error TS7006: Parameter 'doc' implicitly has an 'any' type.
+src/hooks/useOrders.ts(79,14): error TS7006: Parameter 'snapshot' implicitly has an 'any' type.
+src/hooks/useOrders.ts(80,54): error TS7006: Parameter 'doc' implicitly has an 'any' type.
+src/hooks/useOrders.ts(112,14): error TS7006: Parameter 'error' implicitly has an 'any' type.
+src/hooks/usePendingApprovals.ts(23,44): error TS7006: Parameter 'snapshot' implicitly has an 'any' type.
+src/hooks/usePendingApprovals.ts(26,31): error TS7006: Parameter 'doc' implicitly has an 'any' type.
+src/hooks/usePlatformStats.ts(35,53): error TS7006: Parameter 'snapshot' implicitly has an 'any' type.
+src/hooks/usePlatformStats.ts(38,31): error TS7006: Parameter 'doc' implicitly has an 'any' type.
+src/hooks/usePortfolio.ts(31,44): error TS7006: Parameter 'snapshot' implicitly has an 'any' type.
+src/hooks/usePortfolio.ts(32,52): error TS7006: Parameter 'doc' implicitly has an 'any' type.
+src/hooks/usePricingConfig.ts(358,52): error TS7006: Parameter 'snapshot' implicitly has an 'any' type.
+src/hooks/usePricingConfig.ts(379,13): error TS7006: Parameter 'err' implicitly has an 'any' type.
+src/hooks/useRecentActivity.ts(24,44): error TS7006: Parameter 'snapshot' implicitly has an 'any' type.
+src/hooks/useRecentActivity.ts(27,31): error TS7006: Parameter 'doc' implicitly has an 'any' type.
+src/hooks/useStorefrontOrders.ts(34,14): error TS7006: Parameter 'snapshot' implicitly has an 'any' type.
+src/hooks/useStorefrontOrders.ts(35,54): error TS7006: Parameter 'doc' implicitly has an 'any' type.
+src/hooks/useStorefrontOrders.ts(54,14): error TS7006: Parameter 'error' implicitly has an 'any' type.
+src/hooks/useTenantAuth.ts(26,61): error TS7006: Parameter 'firebaseUser' implicitly has an 'any' type.
+src/hooks/useTenantAuth.ts(115,21): error TS2345: Argument of type '{ uid: string; email: string | undefined; }' is not assignable to parameter of type 'SetStateAction<User | null>'.
+  Type '{ uid: string; email: string | undefined; }' is not assignable to type 'User'.
+    Types of property 'email' are incompatible.
+      Type 'string | undefined' is not assignable to type 'string'.
+        Type 'undefined' is not assignable to type 'string'.
+src/hooks/useTenantDashboard.ts(109,65): error TS7006: Parameter 'doc' implicitly has an 'any' type.
+src/hooks/useTenantDashboard.ts(159,58): error TS7006: Parameter 'snapshot' implicitly has an 'any' type.
+src/hooks/useUserRole.ts(23,61): error TS7006: Parameter 'firebaseUser' implicitly has an 'any' type.
+src/hooks/useWebsiteBuilder.ts(50,14): error TS7006: Parameter 'snapshot' implicitly has an 'any' type.
+src/hooks/useWebsiteBuilder.ts(65,14): error TS7006: Parameter 'error' implicitly has an 'any' type.
+src/hooks/useWebsiteBuilder.ts(151,14): error TS7006: Parameter 'snapshot' implicitly has an 'any' type.
+src/hooks/useWebsiteBuilder.ts(166,14): error TS7006: Parameter 'error' implicitly has an 'any' type.
+src/hooks/useWebsiteBuilder.ts(218,14): error TS7006: Parameter 'snapshot' implicitly has an 'any' type.
+src/hooks/useWebsiteBuilder.ts(241,14): error TS7006: Parameter 'error' implicitly has an 'any' type.
+src/hooks/useWebsiteBuilder.ts(470,14): error TS7006: Parameter 'snapshot' implicitly has an 'any' type.
+src/hooks/useWebsiteBuilder.ts(471,57): error TS7006: Parameter 'doc' implicitly has an 'any' type.
+src/hooks/useWebsiteBuilder.ts(478,14): error TS7006: Parameter 'error' implicitly has an 'any' type.
+src/hooks/useWebsiteBuilder.ts(607,14): error TS7006: Parameter 'snapshot' implicitly has an 'any' type.
+src/hooks/useWebsiteBuilder.ts(608,61): error TS7006: Parameter 'doc' implicitly has an 'any' type.
+src/hooks/useWebsiteBuilder.ts(615,14): error TS7006: Parameter 'error' implicitly has an 'any' type.
+src/hooks/useWebsiteBuilder.ts(758,14): error TS7006: Parameter 'snapshot' implicitly has an 'any' type.
+src/hooks/useWebsiteBuilder.ts(779,14): error TS7006: Parameter 'error' implicitly has an 'any' type.
+src/hooks/useWebsiteBuilder.ts(865,14): error TS7006: Parameter 'snapshot' implicitly has an 'any' type.
+src/hooks/useWebsiteBuilder.ts(880,14): error TS7006: Parameter 'error' implicitly has an 'any' type.
+src/hooks/useWebsiteBuilder.ts(941,14): error TS7006: Parameter 'snapshot' implicitly has an 'any' type.
+src/hooks/useWebsiteBuilder.ts(942,53): error TS7006: Parameter 'doc' implicitly has an 'any' type.
+src/hooks/useWebsiteBuilder.ts(949,14): error TS7006: Parameter 'error' implicitly has an 'any' type.
+src/hooks/useWebsiteConfig.ts(61,14): error TS7006: Parameter 'snapshot' implicitly has an 'any' type.
+src/hooks/useWebsiteConfig.ts(69,14): error TS7006: Parameter 'error' implicitly has an 'any' type.
+src/hooks/useWebsiteConfig.ts(213,50): error TS7006: Parameter 'snapshot' implicitly has an 'any' type.
+src/hooks/useWebsiteConfig.ts(220,50): error TS7006: Parameter 'snapshot' implicitly has an 'any' type.
+src/hooks/useWebsitePages.ts(57,14): error TS7006: Parameter 'snapshot' implicitly has an 'any' type.
+src/hooks/useWebsitePages.ts(58,54): error TS7006: Parameter 'doc' implicitly has an 'any' type.
+src/hooks/useWebsitePages.ts(65,14): error TS7006: Parameter 'error' implicitly has an 'any' type.

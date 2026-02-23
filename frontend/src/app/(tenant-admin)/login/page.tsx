@@ -10,7 +10,7 @@ import { Label } from "@/components/ui/label";
 import { useTenantAuth } from "@/hooks/useTenantAuth";
 import { Lock, User, Briefcase } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { collectionGroup, query, where, getDocs } from "firebase/firestore";
+import { collectionGroup, query, where, getDocs } from "@/lib/firebaseWrapper";
 import { db } from "@/lib/firebase";
 
 export default function TenantLoginPage() {

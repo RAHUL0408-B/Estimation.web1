@@ -12,9 +12,8 @@ import {
     DialogHeader,
     DialogTitle,
 } from "@/components/ui/dialog";
-import { initializeApp, deleteApp, getApps } from "firebase/app";
-import { getAuth, createUserWithEmailAndPassword } from "firebase/auth";
-import { firebaseConfig } from "@/lib/firebase";
+import { initializeApp, deleteApp, getApps } from "@/lib/firebaseWrapper";
+import { getAuth, createUserWithEmailAndPassword } from "@/lib/firebaseWrapper";
 import { addDesigner, generateStoreId } from "@/lib/firestoreHelpers";
 
 interface AddCompanyDialogProps {
@@ -80,7 +79,7 @@ export function AddCompanyDialog({ open, onOpenChange }: AddCompanyDialogProps) 
 
                 try {
                     const secondaryAppName = `secondary-app-${Date.now()}`;
-                    secondaryApp = initializeApp(firebaseConfig, secondaryAppName);
+                    secondaryApp = initializeApp({ name: secondaryAppName });
                     const secondaryAuth = getAuth(secondaryApp);
 
                     const userCredential = await createUserWithEmailAndPassword(

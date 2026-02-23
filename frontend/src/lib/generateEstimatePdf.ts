@@ -1,8 +1,8 @@
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
 import { db, storage } from "@/lib/firebase";
-import { doc, getDoc, updateDoc, collection, query, where, getDocs } from "firebase/firestore";
-import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
+import { doc, getDoc, updateDoc, collection, query, where, getDocs } from "@/lib/firebaseWrapper";
+import { ref, uploadBytes, getDownloadURL } from "@/lib/firebaseWrapper";
 
 interface EstimateData {
     customerInfo: {

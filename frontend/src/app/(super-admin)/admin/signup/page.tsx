@@ -7,8 +7,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { createUserWithEmailAndPassword } from "firebase/auth";
-import { doc, setDoc, serverTimestamp } from "firebase/firestore";
+import { createUserWithEmailAndPassword } from "@/lib/firebaseWrapper";
+import { doc, setDoc, serverTimestamp } from "@/lib/firebaseWrapper";
 import { auth, db } from "@/lib/firebase";
 import { useAdminAuth } from "@/hooks/useAdminAuth";
 import { ShieldCheck, Mail, Lock, User, Loader2, ChevronLeft } from "lucide-react";

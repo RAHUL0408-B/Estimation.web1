@@ -1,0 +1,13 @@
+src/app/(tenant-admin)/dashboard/settings/cities/page.tsx(16,63): error TS2339: Property 'updateCities' does not exist on type '{ cities: City[]; loading: boolean; saving: boolean; addCity: (name: string) => Promise<boolean>; updateCity: (id: string, updates: Partial<City>) => Promise<boolean>; deleteCity: (id: string) => Promise<...>; toggleCity: (id: string, currentStatus: boolean) => Promise<...>; }'.
+src/app/(tenant-admin)/dashboard/settings/cities/page.tsx(41,15): error TS2554: Expected 2 arguments, but got 1.
+src/app/api/upload/route.ts(37,69): error TS2554: Expected 2 arguments, but got 3.
+src/components/AddCompanyDialog.tsx(17,10): error TS2305: Module '"@/lib/firebase"' has no exported member 'firebaseConfig'.
+src/components/AddCompanyDialog.tsx(83,66): error TS2554: Expected 1 arguments, but got 2.
+src/hooks/useCustomerAuth.ts(165,28): error TS2339: Property 'displayName' does not exist on type '{ uid: string; email: string; }'.
+src/hooks/useCustomerAuth.ts(177,35): error TS2339: Property 'displayName' does not exist on type '{ uid: string; email: string; }'.
+src/hooks/useCustomerAuth.ts(180,32): error TS2339: Property 'photoURL' does not exist on type '{ uid: string; email: string; }'.
+src/hooks/useTenantAuth.ts(115,21): error TS2345: Argument of type '{ uid: string; email: string | undefined; }' is not assignable to parameter of type 'SetStateAction<User | null>'.
+  Type '{ uid: string; email: string | undefined; }' is not assignable to type 'User'.
+    Types of property 'email' are incompatible.
+      Type 'string | undefined' is not assignable to type 'string'.
+        Type 'undefined' is not assignable to type 'string'.

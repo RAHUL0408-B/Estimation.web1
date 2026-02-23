@@ -10,7 +10,7 @@ import {
     where,
     getDocs,
     getDoc,
-} from "firebase/firestore";
+} from "@/lib/firebaseWrapper";
 
 export interface Tenant {
     id: string;

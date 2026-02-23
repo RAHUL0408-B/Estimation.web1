@@ -2,8 +2,8 @@
 
 import { useState, useEffect } from "react";
 import { auth, db } from "@/lib/firebase";
-import { onAuthStateChanged, User } from "firebase/auth";
-import { doc, getDoc } from "firebase/firestore";
+import { onAuthStateChanged, User } from "@/lib/firebaseWrapper";
+import { doc, getDoc } from "@/lib/firebaseWrapper";
 
 export interface UserRoleData {
     uid: string;

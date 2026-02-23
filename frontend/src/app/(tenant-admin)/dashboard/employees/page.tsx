@@ -32,7 +32,7 @@ import {
     doc,
     deleteDoc,
     updateDoc
-} from "firebase/firestore";
+} from "@/lib/firebaseWrapper";
 import { Plus, Trash2, Edit, Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 

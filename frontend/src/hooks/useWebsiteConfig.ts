@@ -2,8 +2,8 @@
 
 import { useState, useEffect } from "react";
 import { db, storage } from "@/lib/firebase";
-import { doc, onSnapshot, setDoc, serverTimestamp } from "firebase/firestore";
-import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
+import { doc, onSnapshot, setDoc, serverTimestamp } from "@/lib/firebaseWrapper";
+import { ref, uploadBytes, getDownloadURL } from "@/lib/firebaseWrapper";
 
 export interface WebsiteConfig {
     brandName: string;

@@ -3,7 +3,7 @@
 import { use, useEffect, useState } from "react";
 import { Loader2, MapPin, Clock, Phone, Mail, MessageCircle, Instagram, Facebook } from "lucide-react";
 import { db } from "@/lib/firebase";
-import { doc, getDoc } from "firebase/firestore";
+import { doc, getDoc } from "@/lib/firebaseWrapper";
 import { getTenantByStoreId } from "@/lib/firestoreHelpers";
 import type { ContactPageContent, BrandConfig, ThemeConfig } from "@/types/website";
 

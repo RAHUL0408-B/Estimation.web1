@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { db } from "@/lib/firebase";
-import { collection, query, orderBy, limit, onSnapshot } from "firebase/firestore";
+import { collection, query, orderBy, limit, onSnapshot } from "@/lib/firebaseWrapper";
 import { Activity, formatRelativeTime } from "@/lib/firestoreHelpers";
 
 export interface ActivityWithTime extends Activity {

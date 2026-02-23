@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { db } from "@/lib/firebase";
-import { collection, query, where, onSnapshot, orderBy } from "firebase/firestore";
+import { collection, query, where, onSnapshot, orderBy } from "@/lib/firebaseWrapper";
 import { Order } from "./useOrders";
 
 export function useStorefrontOrders({ tenantId, userEmail }: { tenantId: string, userEmail: string | null }) {

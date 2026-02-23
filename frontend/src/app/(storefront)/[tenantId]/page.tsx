@@ -20,7 +20,7 @@ import {
     Lightbulb
 } from "lucide-react";
 import { db } from "@/lib/firebase";
-import { doc, getDoc, collection, query, where, getDocs, orderBy, limit, onSnapshot } from "firebase/firestore";
+import { doc, getDoc, collection, query, where, getDocs, orderBy, limit, onSnapshot } from "@/lib/firebaseWrapper";
 import { getTenantByStoreId } from "@/lib/firestoreHelpers";
 import HeroSlider from "@/components/storefront/HeroSlider";
 import TestimonialSlider from "@/components/storefront/TestimonialSlider";

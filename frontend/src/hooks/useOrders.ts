@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { db } from "@/lib/firebase";
-import { collection, query, where, onSnapshot, doc, updateDoc, orderBy, arrayUnion, Timestamp } from "firebase/firestore";
+import { collection, query, where, onSnapshot, doc, updateDoc, orderBy, arrayUnion, Timestamp } from "@/lib/firebaseWrapper";
 
 export interface Order {
     id: string;

@@ -2,9 +2,9 @@
 
 import { useState, useEffect, useRef } from "react";
 import { auth, db } from "@/lib/firebase";
-import { signInWithEmailAndPassword, signOut, onAuthStateChanged, User } from "firebase/auth";
+import { signInWithEmailAndPassword, signOut, onAuthStateChanged, User } from "@/lib/firebaseWrapper";
 import { getTenantByEmail, Tenant } from "@/lib/firestoreHelpers";
-import { doc, setDoc, serverTimestamp } from "firebase/firestore";
+import { doc, setDoc, serverTimestamp } from "@/lib/firebaseWrapper";
 
 // Cache tenant data to prevent re-fetching on every render
 const tenantCache: { [email: string]: { data: Tenant; timestamp: number } } = {};

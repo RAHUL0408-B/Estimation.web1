@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { db } from "@/lib/firebase";
-import { collection, onSnapshot, query, orderBy } from "firebase/firestore";
+import { collection, onSnapshot, query, orderBy } from "@/lib/firebaseWrapper";
 import { Tenant } from "@/lib/firestoreHelpers";
 
 export function useCompanies() {
