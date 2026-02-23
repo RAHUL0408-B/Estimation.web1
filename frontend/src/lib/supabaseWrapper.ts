@@ -86,6 +86,12 @@ export const limit = (limitAmount: number) => {
     return { type: 'limit', limitAmount };
 };
 
+const SCHEMA_COLS = {
+    users: ['id', 'uid', 'email', 'role', 'tenantId', 'lastLogin', 'createdAt'],
+    customers: ['id', 'uid', 'email', 'displayName', 'phoneNumber', 'city', 'photoURL', 'lastLogin', 'createdAt'],
+    tenants: ['id', 'ownerUid', 'name', 'status', 'plan', 'createdAt']
+};
+
 function getTableConfig(path: string) {
     if (path === 'users' || path === 'customers' || path === 'tenants') {
         return { table: path, isGeneric: false };
@@ -95,12 +101,7 @@ function getTableConfig(path: string) {
 
 function prepareRelationalData(table: string, payload: any) {
     const result: any = { data: {} };
-    const schemaCols = {
-        users: ['uid', 'email', 'role', 'tenantId', 'lastLogin', 'createdAt'],
-        customers: ['uid', 'email', 'displayName', 'phoneNumber', 'city', 'photoURL', 'lastLogin', 'createdAt'],
-        tenants: ['ownerUid', 'name', 'status', 'plan', 'createdAt']
-    };
-    const validCols = schemaCols[table as keyof typeof schemaCols] || [];
+    const validCols = SCHEMA_COLS[table as keyof typeof SCHEMA_COLS] || [];
 
     for (const [key, value] of Object.entries(payload)) {
         let val = value;
@@ -125,12 +126,22 @@ export const getDocs = async (queryObj: any) => {
     if (isGeneric) builder = builder.eq('collection_path', queryObj.path);
 
     if (queryObj.constraints) {
+        const validCols = SCHEMA_COLS[table as keyof typeof SCHEMA_COLS] || [];
         for (const constraint of queryObj.constraints) {
-            const field = isGeneric ? `data->>${constraint.fieldPath}` : constraint.fieldPath;
+            let field = constraint.fieldPath;
+            if (isGeneric) {
+                field = `data->>${constraint.fieldPath}`;
+            } else if (!validCols.includes(field)) {
+                field = `data->>${constraint.fieldPath}`;
+            }
+
             if (constraint.type === 'where') {
                 if (constraint.opStr === '==') builder = builder.eq(field, constraint.value);
             } else if (constraint.type === 'orderBy') {
-                builder = builder.order(isGeneric ? `data->${constraint.fieldPath}` : constraint.fieldPath, { ascending: constraint.directionStr === 'asc' });
+                const orderField = isGeneric || !validCols.includes(constraint.fieldPath)
+                    ? `data->${constraint.fieldPath}`
+                    : constraint.fieldPath;
+                builder = builder.order(orderField, { ascending: constraint.directionStr === 'asc' });
             } else if (constraint.type === 'limit') {
                 builder = builder.limit(constraint.limitAmount);
             }
