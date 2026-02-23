@@ -30,9 +30,12 @@ export async function POST(req: NextRequest) {
         const storagePath = `tenants/${tenantId}/${folder}/${filename}`;
         const storageRef = ref(storage, storagePath);
 
+        // Convert the File out to a native Buffer safely across differing backend Node environments
+        const buffer = Buffer.from(await file.arrayBuffer());
+
         // Upload to Firebase/Supabase Storage
-        const snapshot = await uploadBytes(storageRef, file, {
-            contentType: file.type,
+        const snapshot = await uploadBytes(storageRef, buffer, {
+            contentType: file.type || "application/octet-stream",
         });
 
         // Get the permanent download URL
