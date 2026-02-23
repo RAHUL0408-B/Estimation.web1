@@ -37,7 +37,7 @@ import {
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { db } from "@/lib/firebase";
-import { doc, updateDoc, collection, addDoc, serverTimestamp, query, onSnapshot } from "firebase/firestore";
+import { doc, updateDoc, collection, addDoc, serverTimestamp, query, onSnapshot } from "@/lib/firebaseWrapper";
 import { useToast } from "@/hooks/use-toast";
 
 interface Employee {
