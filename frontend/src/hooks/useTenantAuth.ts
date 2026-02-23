@@ -46,7 +46,48 @@ export function useTenantAuth() {
 
                 try {
                     // Get tenant data from Firestore
-                    const tenantData = await getTenantByEmail(email);
+                    let tenantData = await getTenantByEmail(email);
+
+                    // Auto-provision if missing (e.g. from Google OAuth)
+                    if (!tenantData && supabaseUser) {
+                        try {
+                            const { collection, addDoc, serverTimestamp, setDoc, doc } = await import('@/lib/supabaseWrapper');
+                            const name = supabaseUser.user_metadata?.full_name || email.split('@')[0] || "User";
+
+                            // Create their tenant
+                            const tenantRef = await addDoc(collection(db, "tenants"), {
+                                ownerUid: supabaseUser.uid,
+                                ownerName: name,
+                                businessName: `${name}'s Workspace`,
+                                email: email,
+                                mobile: "",
+                                subscription: { plan: 'free', status: 'active', startDate: new Date().toISOString() },
+                                status: "active",
+                                revenue: { total: 0, thisMonth: 0, lastMonth: 0 },
+                                settings: { autoApproval: false, notifications: true },
+                                createdAt: serverTimestamp(),
+                                lastLogin: serverTimestamp()
+                            });
+
+                            // Create their user record mapping to the tenant
+                            await setDoc(doc(db, "users", supabaseUser.uid), {
+                                uid: supabaseUser.uid,
+                                email: email,
+                                role: "admin",
+                                tenantId: tenantRef.id,
+                                name: name,
+                                mobile: "",
+                                createdAt: serverTimestamp(),
+                                lastLogin: serverTimestamp()
+                            });
+
+                            // Set the newly minted tenantData
+                            tenantData = await getTenantByEmail(email);
+                        } catch (provisionError) {
+                            console.error("Failed to auto-provision tenant from OAuth:", provisionError);
+                        }
+                    }
+
                     if (tenantData) {
                         // Cache the result
                         tenantCache[email] = { data: tenantData, timestamp: Date.now() };
