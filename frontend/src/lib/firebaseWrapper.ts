@@ -86,14 +86,26 @@ export const limit = (limitAmount: number) => {
     return { type: 'limit', limitAmount };
 };
 
+function getTableConfig(path: string) {
+    if (path === 'users' || path === 'customers' || path === 'tenants') {
+        return { table: path, isGeneric: false };
+    }
+    return { table: 'firestore_documents', isGeneric: true };
+}
+
 export const getDocs = async (queryObj: any) => {
-    let builder: any = supabase.from(queryObj.path).select('*');
+    const { table, isGeneric } = getTableConfig(queryObj.path);
+    let builder: any = supabase.from(table).select('*');
+
+    if (isGeneric) builder = builder.eq('collection_path', queryObj.path);
+
     if (queryObj.constraints) {
         for (const constraint of queryObj.constraints) {
+            const field = isGeneric ? `data->>${constraint.fieldPath}` : constraint.fieldPath;
             if (constraint.type === 'where') {
-                if (constraint.opStr === '==') builder = builder.eq(constraint.fieldPath, constraint.value);
+                if (constraint.opStr === '==') builder = builder.eq(field, constraint.value);
             } else if (constraint.type === 'orderBy') {
-                builder = builder.order(constraint.fieldPath, { ascending: constraint.directionStr === 'asc' });
+                builder = builder.order(isGeneric ? `data->${constraint.fieldPath}` : constraint.fieldPath, { ascending: constraint.directionStr === 'asc' });
             } else if (constraint.type === 'limit') {
                 builder = builder.limit(constraint.limitAmount);
             }
@@ -101,11 +113,15 @@ export const getDocs = async (queryObj: any) => {
     }
     const { data } = await builder;
     const items = data || [];
-    const docs = items.map((item: any) => ({
-        id: item.id || item.uid,
-        data: () => mapToFirebaseData(item),
-        exists: () => true
-    }));
+    const docs = items.map((item: any) => {
+        const docData = isGeneric ? item.data : mapToFirebaseData(item);
+        const docId = isGeneric ? item.doc_id : (item.id || item.uid);
+        return {
+            id: docId,
+            data: () => docData,
+            exists: () => true
+        };
+    });
     return {
         empty: docs.length === 0,
         size: docs.length,
@@ -115,21 +131,64 @@ export const getDocs = async (queryObj: any) => {
 };
 
 export const getDoc = async (docRef: any) => {
-    const { data } = await supabase.from(docRef.path).select('*').eq('id', docRef.id).single();
+    const { table, isGeneric } = getTableConfig(docRef.path);
+    let builder: any = supabase.from(table).select('*');
+    if (isGeneric) {
+        builder = builder.eq('collection_path', docRef.path).eq('doc_id', docRef.id);
+    } else {
+        builder = builder.eq('id', docRef.id);
+    }
+    const { data } = await builder.single();
     return {
         id: docRef.id,
         exists: () => !!data,
-        data: () => data ? mapToFirebaseData(data) : undefined,
+        data: () => data ? (isGeneric ? mapToFirebaseData(data.data) : mapToFirebaseData(data)) : undefined,
     };
 };
 
 export const addDoc = async (collectionRef: any, data: any) => {
-    return { id: 'stub-id' };
+    const { table, isGeneric } = getTableConfig(collectionRef.path);
+    const id = Date.now().toString(36) + Math.random().toString(36).substring(2);
+    if (isGeneric) {
+        await supabase.from(table).insert({ collection_path: collectionRef.path, doc_id: id, data: data });
+    } else {
+        await supabase.from(table).insert({ id, ...data });
+    }
+    return { id };
 };
 
-export const setDoc = async (docRef: any, data: any, options?: { merge: boolean }) => { };
-export const updateDoc = async (docRef: any, data: any) => { };
-export const deleteDoc = async (docRef: any) => { };
+export const setDoc = async (docRef: any, data: any, options?: { merge: boolean }) => {
+    const { table, isGeneric } = getTableConfig(docRef.path);
+    if (isGeneric) {
+        const existing = await supabase.from(table).select('data').eq('collection_path', docRef.path).eq('doc_id', docRef.id).single();
+        const newData = options?.merge && existing.data ? { ...existing.data.data, ...data } : data;
+        await supabase.from(table).upsert({ collection_path: docRef.path, doc_id: docRef.id, data: newData }, { onConflict: 'collection_path,doc_id' });
+    } else {
+        await supabase.from(table).upsert({ id: docRef.id, ...data });
+    }
+};
+
+export const updateDoc = async (docRef: any, data: any) => {
+    const { table, isGeneric } = getTableConfig(docRef.path);
+    if (isGeneric) {
+        const existing = await supabase.from(table).select('data').eq('collection_path', docRef.path).eq('doc_id', docRef.id).single();
+        if (existing.data) {
+            const newData = { ...existing.data.data, ...data };
+            await supabase.from(table).update({ data: newData }).eq('collection_path', docRef.path).eq('doc_id', docRef.id);
+        }
+    } else {
+        await supabase.from(table).update(data).eq('id', docRef.id);
+    }
+};
+
+export const deleteDoc = async (docRef: any) => {
+    const { table, isGeneric } = getTableConfig(docRef.path);
+    if (isGeneric) {
+        await supabase.from(table).delete().eq('collection_path', docRef.path).eq('doc_id', docRef.id);
+    } else {
+        await supabase.from(table).delete().eq('id', docRef.id);
+    }
+};
 
 // Snapshot listener stub
 export const onSnapshot = (queryObj: any, callbackOrObj: any, errorCallback?: any) => {
