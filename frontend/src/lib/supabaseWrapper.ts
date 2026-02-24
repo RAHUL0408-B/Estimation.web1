@@ -56,8 +56,9 @@ export const collection = (dbInstance: any, path: string, ...segments: string[])
     return { type: 'collection', path: fullPath };
 };
 
-export const collectionGroup = (dbInstance: any, path: string) => {
-    return { type: 'collection', path }; // stub
+export const collectionGroup = (dbInstance: any, collectionId: string) => {
+    // Used to search across all nested sub-collections with this name (e.g. 'employees')
+    return { type: 'collectionGroup', path: collectionId };
 };
 
 export const doc = (dbInstance: any, path: string, ...segments: string[]) => {
@@ -120,6 +121,38 @@ function prepareRelationalData(table: string, payload: any) {
 }
 
 export const getDocs = async (queryObj: any) => {
+    // Handle collectionGroup queries — search across all paths ending with /collectionId
+    if (queryObj.type === 'collectionGroup') {
+        let builder: any = supabase
+            .from('firestore_documents')
+            .select('*')
+            .like('collection_path', `%/${queryObj.path}`);
+
+        if (queryObj.constraints) {
+            for (const constraint of queryObj.constraints) {
+                const field = `data->>${constraint.fieldPath}`;
+                if (constraint.type === 'where') {
+                    if (constraint.opStr === '==') builder = builder.eq(field, constraint.value);
+                    else if (constraint.opStr === '!=') builder = builder.neq(field, constraint.value);
+                }
+            }
+        }
+
+        const response = await builder;
+        if (response.error) {
+            console.error('collectionGroup getDocs error:', response.error);
+            return { docs: [], empty: true, size: 0, forEach: (_cb: any) => { } };
+        }
+        const items = response.data || [];
+        const docs = items.map((item: any) => ({
+            id: item.doc_id,
+            ref: { parent: { parent: { id: item.collection_path.split('/')[1] } } },
+            data: () => ({ ...item.data }),
+            exists: () => true,
+        }));
+        return { empty: docs.length === 0, size: docs.length, docs, forEach: (cb: any) => docs.forEach(cb) };
+    }
+
     const { table, isGeneric } = getTableConfig(queryObj.path);
     let builder: any = supabase.from(table).select('*');
 

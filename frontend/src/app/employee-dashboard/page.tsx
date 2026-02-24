@@ -186,7 +186,6 @@ export default function EmployeeDashboard() {
             unsubEmployee();
             unsubOrders();
             unsubRequests();
-            unsubRequests();
         };
     }, [router]);
 

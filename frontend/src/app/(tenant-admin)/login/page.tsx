@@ -15,8 +15,13 @@ import { db } from "@/lib/supabaseClient";
 import { motion } from "framer-motion";
 
 export default function TenantLoginPage() {
-    const [email, setEmail] = useState("");
-    const [password, setPassword] = useState("");
+    // Designer tab state
+    const [designerEmail, setDesignerEmail] = useState("");
+    const [designerPassword, setDesignerPassword] = useState("");
+    // Employee tab state
+    const [employeeEmail, setEmployeeEmail] = useState("");
+    const [employeePassword, setEmployeePassword] = useState("");
+
     const { login, loading: designerLoading, error: designerError, isAuthenticated } = useTenantAuth();
 
     const [employeeLoading, setEmployeeLoading] = useState(false);
@@ -39,7 +44,7 @@ export default function TenantLoginPage() {
 
     const handleDesignerLogin = async (e: React.FormEvent) => {
         e.preventDefault();
-        const success = await login(email, password);
+        const success = await login(designerEmail, designerPassword);
         if (success) {
             router.push("/dashboard");
         }
@@ -52,34 +57,37 @@ export default function TenantLoginPage() {
 
         try {
             const employeesRef = collectionGroup(db, "employees");
-            const q = query(employeesRef, where("email", "==", email));
+            const q = query(employeesRef, where("email", "==", employeeEmail));
             const querySnapshot = await getDocs(q);
 
             if (querySnapshot.empty) {
-                setEmployeeError("Account not found.");
+                setEmployeeError("Account not found. Please check your email.");
                 setEmployeeLoading(false);
                 return;
             }
 
             let inputsValid = false;
-            let employeeData = null;
+            let employeeData: any = null;
 
-            querySnapshot.forEach((doc) => {
-                const data = doc.data();
-                if (data.password === password) {
+            for (const docSnap of querySnapshot.docs) {
+                const data = docSnap.data();
+                if (data.password === employeePassword) {
                     inputsValid = true;
-                    const tenantId = data.tenantId || doc.ref.parent.parent?.id;
-                    employeeData = { id: doc.id, ...data, tenantId };
+                    // tenantId is stored in data.tenantId (set when employee was created)
+                    const tenantId = data.tenantId || "";
+                    employeeData = { id: docSnap.id, ...data, tenantId };
+                    break;
                 }
-            });
+            }
 
             if (inputsValid && employeeData) {
                 sessionStorage.setItem("employeeSession", JSON.stringify(employeeData));
                 router.push("/employee-dashboard");
             } else {
-                setEmployeeError("Invalid credentials.");
+                setEmployeeError("Incorrect password. Please try again.");
             }
         } catch (error: any) {
+            console.error("Employee login error:", error);
             setEmployeeError(`Login failed: ${error.message || "Unknown error"}.`);
         } finally {
             setEmployeeLoading(false);
@@ -131,8 +139,8 @@ export default function TenantLoginPage() {
                                                 className="pl-12 rounded-lg border-gray-100 bg-gray-50 focus:bg-white focus:ring-0 focus:border-black transition-all h-12 text-sm font-medium"
                                                 type="email"
                                                 placeholder="Email address"
-                                                value={email}
-                                                onChange={(e) => setEmail(e.target.value)}
+                                                value={designerEmail}
+                                                onChange={(e) => setDesignerEmail(e.target.value)}
                                                 required
                                                 disabled={designerLoading}
                                             />
@@ -152,8 +160,8 @@ export default function TenantLoginPage() {
                                                 className="pl-12 rounded-lg border-gray-100 bg-gray-50 focus:bg-white focus:ring-0 focus:border-black transition-all h-12 text-sm font-medium"
                                                 type="password"
                                                 placeholder="Password"
-                                                value={password}
-                                                onChange={(e) => setPassword(e.target.value)}
+                                                value={designerPassword}
+                                                onChange={(e) => setDesignerPassword(e.target.value)}
                                                 required
                                                 disabled={designerLoading}
                                             />
@@ -213,8 +221,8 @@ export default function TenantLoginPage() {
                                                 className="pl-12 rounded-lg border-gray-100 bg-gray-50 focus:bg-white focus:ring-0 focus:border-black transition-all h-12 text-sm font-medium"
                                                 type="email"
                                                 placeholder="Email address"
-                                                value={email}
-                                                onChange={(e) => setEmail(e.target.value)}
+                                                value={employeeEmail}
+                                                onChange={(e) => setEmployeeEmail(e.target.value)}
                                                 required
                                                 disabled={employeeLoading}
                                             />
@@ -229,8 +237,8 @@ export default function TenantLoginPage() {
                                                 className="pl-12 rounded-lg border-gray-100 bg-gray-50 focus:bg-white focus:ring-0 focus:border-black transition-all h-12 text-sm font-medium"
                                                 type="password"
                                                 placeholder="Access Key"
-                                                value={password}
-                                                onChange={(e) => setPassword(e.target.value)}
+                                                value={employeePassword}
+                                                onChange={(e) => setEmployeePassword(e.target.value)}
                                                 required
                                                 disabled={employeeLoading}
                                             />
