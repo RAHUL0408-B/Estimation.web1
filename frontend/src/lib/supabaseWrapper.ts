@@ -137,9 +137,15 @@ export const getDocs = async (queryObj: any) => {
 
             if (constraint.type === 'where') {
                 if (constraint.opStr === '==') builder = builder.eq(field, constraint.value);
+                else if (constraint.opStr === '!=') builder = builder.neq(field, constraint.value);
+                else if (constraint.opStr === '>') builder = builder.gt(field, constraint.value);
+                else if (constraint.opStr === '>=') builder = builder.gte(field, constraint.value);
+                else if (constraint.opStr === '<') builder = builder.lt(field, constraint.value);
+                else if (constraint.opStr === '<=') builder = builder.lte(field, constraint.value);
             } else if (constraint.type === 'orderBy') {
+                // Use text cast (->>) for ordering JSON fields so Postgres can compare values
                 const orderField = isGeneric || !validCols.includes(constraint.fieldPath)
-                    ? `data->${constraint.fieldPath}`
+                    ? `data->>${constraint.fieldPath}`
                     : constraint.fieldPath;
                 builder = builder.order(orderField, { ascending: constraint.directionStr === 'asc' });
             } else if (constraint.type === 'limit') {
@@ -186,11 +192,25 @@ export const getDoc = async (docRef: any) => {
     };
 };
 
+function normalizeTimestampsInData(data: any): any {
+    if (!data || typeof data !== 'object') return data;
+    const normalized: any = {};
+    for (const [key, value] of Object.entries(data)) {
+        if (value && typeof value === 'object' && typeof (value as any).toDate === 'function') {
+            normalized[key] = (value as any).toDate().toISOString();
+        } else {
+            normalized[key] = value;
+        }
+    }
+    return normalized;
+}
+
 export const addDoc = async (collectionRef: any, data: any) => {
     const { table, isGeneric } = getTableConfig(collectionRef.path);
     const id = Date.now().toString(36) + Math.random().toString(36).substring(2);
     if (isGeneric) {
-        const { error } = await supabase.from(table).insert({ collection_path: collectionRef.path, doc_id: id, data: data });
+        const normalizedData = normalizeTimestampsInData(data);
+        const { error } = await supabase.from(table).insert({ collection_path: collectionRef.path, doc_id: id, data: normalizedData });
         if (error) console.error("addDoc generic err:", error);
     } else {
         const payload = prepareRelationalData(table, data);
@@ -249,23 +269,38 @@ export const deleteDoc = async (docRef: any) => {
     }
 };
 
-// Snapshot listener stub
+// Snapshot listener stub — polls once and then sets up a lightweight interval for near-realtime updates
 export const onSnapshot = (queryObj: any, callbackOrObj: any, errorCallback?: any) => {
     const callback = typeof callbackOrObj === 'function' ? callbackOrObj : callbackOrObj.next;
-    Promise.resolve().then(async () => {
+    const onError = typeof callbackOrObj === 'function' ? errorCallback : callbackOrObj.error;
+
+    let cancelled = false;
+
+    const fetchAndNotify = async () => {
         try {
             if (queryObj.type === 'doc') {
                 const docSnap = await getDoc(queryObj);
-                callback(docSnap);
+                if (!cancelled) callback(docSnap);
             } else {
                 const querySnap = await getDocs(queryObj);
-                callback(querySnap);
+                if (!cancelled) callback(querySnap);
             }
         } catch (e) {
-            if (errorCallback) errorCallback(e);
+            console.error('[onSnapshot] Error fetching data:', e);
+            if (onError && !cancelled) onError(e);
         }
-    });
-    return () => { }; // return unsubscribe function
+    };
+
+    // Fetch immediately
+    fetchAndNotify();
+
+    // Poll every 5 seconds to keep data fresh (near-realtime)
+    const intervalId = setInterval(fetchAndNotify, 5000);
+
+    return () => {
+        cancelled = true;
+        clearInterval(intervalId);
+    };
 };
 
 function mapToSupabaseData(obj: any): any {
