@@ -195,7 +195,7 @@ export function AddCompanyDialog({ open, onOpenChange }: AddCompanyDialogProps) 
                                     id="storeId"
                                     placeholder="abc-interiors"
                                     value={formData.storeId}
-                                    onChange={(e) => setFormData({ ...formData, storeId: e.target.value })}
+                                    onChange={(e) => setFormData({ ...formData, storeId: generateStoreId(e.target.value) })}
                                     required
                                 />
                             </div>

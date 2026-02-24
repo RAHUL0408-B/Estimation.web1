@@ -208,20 +208,19 @@ export function usePublicWebsiteConfig(storeSlug: string) {
         const unsubBrand = onSnapshot(brandRef, (snapshot) => {
             if (snapshot.exists()) {
                 brandData = snapshot.data();
-                updateConfig();
             } else {
-                // If it doesn't exist, we still want to stop loading
-                setLoading(false);
+                brandData = {};
             }
+            updateConfig();
         });
 
         const unsubTheme = onSnapshot(themeRef, (snapshot) => {
             if (snapshot.exists()) {
                 themeData = snapshot.data();
-                updateConfig();
             } else {
-                setLoading(false);
+                themeData = {};
             }
+            updateConfig();
         });
 
         return () => {

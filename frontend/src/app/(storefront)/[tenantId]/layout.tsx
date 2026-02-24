@@ -106,17 +106,15 @@ export default function StorefrontLayout({
         document.documentElement.style.setProperty('--font-family', fontFamily);
     }, [config]);
 
-    if (loading) {
-        return (
-            <div className="flex flex-col items-center justify-center min-h-screen bg-gray-50">
-                <div className="h-10 w-10 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin"></div>
-                <p className="mt-4 text-gray-500 font-medium">Loading...</p>
-            </div>
-        );
-    }
-
-    // If config is null after loading (tenant not found), just render children (404 page)
     if (!config) {
+        if (!tenantId) {
+            return (
+                <div className="flex flex-col items-center justify-center min-h-screen bg-gray-50">
+                    <div className="h-10 w-10 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin"></div>
+                    <p className="mt-4 text-gray-500 font-medium">Resolving tenant...</p>
+                </div>
+            );
+        }
         return <>{children}</>;
     }
 
@@ -127,29 +125,19 @@ export default function StorefrontLayout({
     const secondaryColor = config?.secondaryColor || "#1c1917";
     const footerText = config?.footerText || "Transforming spaces into dreams.";
 
-    // Show loading state only for initial load (first 2 seconds max)
-    if (loading && !config) {
-        return (
-            <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-gray-50 to-gray-100">
-                <div className="text-center space-y-4">
-                    <div className="relative w-16 h-16 mx-auto">
-                        <div className="absolute inset-0 border-4 border-indigo-200 rounded-full"></div>
-                        <div className="absolute inset-0 border-4 border-indigo-600 rounded-full border-t-transparent animate-spin"></div>
-                    </div>
-                    <p className="text-gray-600 font-medium">Loading {tenantId}...</p>
-                </div>
-            </div>
-        );
-    }
-
     return (
         <div className="flex min-h-screen flex-col font-sans transition-colors duration-500" style={{ backgroundColor: config.backgroundColor || '#ffffff' }}>
             <header
                 className={`fixed top-0 z-50 w-full transition-all duration-300 ease-in-out shadow-md border-b border-gray-100 ${scrolled ? "h-[60px]" : "h-[72px]"
                     }`}
-                style={{ backgroundColor: `${config.backgroundColor || '#ffffff'}ee`, backdropFilter: 'blur(12px)' }}
             >
-                <div className="container mx-auto flex items-center justify-between px-6 md:px-12 h-full">
+                {/* Safe Background Layer for Translucency */}
+                <div
+                    className="absolute inset-0 -z-10 backdrop-blur-md"
+                    style={{ backgroundColor: config.backgroundColor || '#ffffff', opacity: 0.95 }}
+                />
+
+                <div className="container mx-auto flex items-center justify-between px-6 md:px-12 h-full relative z-10">
                     <Link href={`/${tenantId}`} className="flex items-center gap-3 group">
                         {config?.logoUrl ? (
                             <img
